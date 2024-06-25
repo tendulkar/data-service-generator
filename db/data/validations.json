@@ -1,0 +1,228 @@
+{
+    "validations": [
+        {
+          "id": 1000001,
+          "namespace": "default",
+          "family": "text",
+          "name": "min_length",
+          "rule_name": "min_length",
+          "validation_params": "{}"
+        },
+        {
+          "id": 1000002,
+          "namespace": "default",
+          "family": "text",
+          "name": "max_length",
+          "rule_name": "max_length",
+          "validation_params": "{}"
+        },
+        {
+          "id": 1000003,
+          "namespace": "default",
+          "family": "text",
+          "name": "required",
+          "rule_name": "required",
+          "validation_params": "{}"
+        },
+        {
+          "id": 1000004,
+          "namespace": "default",
+          "family": "text",
+          "name": "email",
+          "rule_name": "email",
+          "validation_params": "{}"
+        },
+        {
+          "id": 1000005,
+          "namespace": "default",
+          "family": "text",
+          "name": "numeric",
+          "rule_name": "numeric",
+          "validation_params": "{}"
+        },
+        {
+          "id": 1000006,
+          "namespace": "default",
+          "family": "text",
+          "name": "alpha_only",
+          "rule_name": "alpha_only",
+          "validation_params": "{}"
+        },
+        {
+          "id": 1000007,
+          "namespace": "default",
+          "family": "text",
+          "name": "alpha_numeric",
+          "rule_name": "alpha_numeric",
+          "validation_params": "{}"
+        },
+        {
+          "id": 1000008,
+          "namespace": "default",
+          "family": "text",
+          "name": "alpha_numeric_special",
+          "rule_name": "alpha_numeric_special",
+          "validation_params": "{}"
+        },
+        {
+          "id": 1000009,
+          "namespace": "default",
+          "family": "text",
+          "name": "match_pattern",
+          "rule_name": "match_pattern",
+          "validation_params": "{}"
+        },
+        {
+          "id": 1000010,
+          "namespace": "default",
+          "family": "text",
+          "name": "valid_url",
+          "rule_name": "valid_url",
+          "validation_params": "{}"
+        },
+        {
+          "id": 1000011,
+          "namespace": "default",
+          "family": "text",
+          "name": "valid_ip",
+          "rule_name": "valid_ip",
+          "validation_params": "{}"
+        },
+        {
+          "id": 1000012,
+          "namespace": "default",
+          "family": "text",
+          "name": "valid_credit_card",
+          "rule_name": "valid_credit_card",
+          "validation_params": "{}"
+        },
+        {
+          "id": 1000013,
+          "namespace": "default",
+          "family": "text",
+          "name": "exact_length",
+          "rule_name": "exact_length",
+          "validation_params": "{}"
+        },
+        {
+          "id": 1000014,
+          "namespace": "default",
+          "family": "text",
+          "name": "max_value",
+          "rule_name": "max_value",
+          "validation_params": "{}"
+        },
+        {
+          "id": 1000015,
+          "namespace": "default",
+          "family": "text",
+          "name": "min_value",
+          "rule_name": "min_value",
+          "validation_params": "{}"
+        },
+        {
+          "id": 1000016,
+          "namespace": "default",
+          "family": "text",
+          "name": "equals_nocase",
+          "rule_name": "equals_nocase",
+          "validation_params": "{}"
+        },
+        {
+          "id": 1000017,
+          "namespace": "default",
+          "family": "text",
+          "name": "equals",
+          "rule_name": "equals",
+          "validation_params": "{}"
+        },
+        {
+          "id": 1000018,
+          "namespace": "default",
+          "family": "text",
+          "name": "equals_nocase_field",
+          "rule_name": "equals_nocase_field",
+          "validation_params": "{}"
+        },
+        {
+          "id": 1000019,
+          "namespace": "default",
+          "family": "text",
+          "name": "equals_field",
+          "rule_name": "equals_field",
+          "validation_params": "{}"
+        },
+        {
+          "id": 1000020,
+          "namespace": "default",
+          "family": "text",
+          "name": "min_words_count",
+          "rule_name": "min_words_count",
+          "validation_params": "{}"
+        },
+        {
+          "id": 1000021,
+          "namespace": "default",
+          "family": "text",
+          "name": "max_words_count",
+          "rule_name": "max_words_count",
+          "validation_params": "{}"
+        },
+        {
+          "id": 1000022,
+          "namespace": "default",
+          "family": "text",
+          "name": "exact_words_count",
+          "rule_name": "exact_words_count",
+          "validation_params": "{}"
+        },
+        {
+          "id": 1000023,
+          "namespace": "default",
+          "family": "file",
+          "name": "max_file_size",
+          "rule_name": "max_file_size",
+          "validation_params": "{}"
+        },
+        {
+          "id": 1000024,
+          "namespace": "default",
+          "family": "file",
+          "name": "min_file_size",
+          "rule_name": "min_file_size",
+          "validation_params": "{}"
+        },
+        {
+          "id": 1000025,
+          "namespace": "default",
+          "family": "media",
+          "name": "min_height",
+          "rule_name": "min_height",
+          "validation_params": "{}"
+        },
+        {
+          "id": 1000026,
+          "namespace": "default",
+          "family": "media",
+          "name": "max_height",
+          "rule_name": "max_height",
+          "validation_params": "{}"
+        },
+        {
+          "id": 1000027,
+          "namespace": "default",
+          "family": "media",
+          "name": "min_width",
+          "rule_name": "min_width",
+          "validation_params": "{}"
+        },
+        {
+          "id": 1000028,
+          "namespace": "default",
+          "family": "media",
+          "name": "max_width",
+          "rule_name": "max_width",
+          "validation_params": "{}"
+        }
+      ]
+}

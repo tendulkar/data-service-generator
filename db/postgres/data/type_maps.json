@@ -1,0 +1,31 @@
+{
+    "postgres_type_mappings": [
+      {"type_id": 1000001, "mapped_type": "VARCHAR(255)"},
+      {"type_id": 1000002, "mapped_type": "TEXT"},
+      {"type_id": 1000003, "mapped_type": "DECIMAL"},
+      {"type_id": 1000004, "mapped_type": "INTEGER"},
+      {"type_id": 1000005, "mapped_type": "MONEY"},
+      {"type_id": 1000006, "mapped_type": "INTEGER"},
+      {"type_id": 1000007, "mapped_type": "NUMERIC(5,2)"},
+      {"type_id": 1000008, "mapped_type": "VARCHAR(255)"},
+      {"type_id": 1000009, "mapped_type": "VARCHAR(15)"},
+      {"type_id": 1000010, "mapped_type": "VARCHAR(255)"},
+      {"type_id": 1000011, "mapped_type": "BOOLEAN"},
+      {"type_id": 1000012, "mapped_type": "VARCHAR(255)"},
+      {"type_id": 1000013, "mapped_type": "VARCHAR(255)[]"},
+      {"type_id": 1000014, "mapped_type": "YEAR"},
+      {"type_id": 1000015, "mapped_type": "MONTH"},
+      {"type_id": 1000016, "mapped_type": "DATE"},
+      {"type_id": 1000017, "mapped_type": "VARCHAR(10)"},
+      {"type_id": 1000018, "mapped_type": "TIME"},
+      {"type_id": 1000019, "mapped_type": "TIMESTAMP WITH TIME ZONE"},
+      {"type_id": 1000020, "mapped_type": "VARCHAR(255)"},
+      {"type_id": 1000021, "mapped_type": "BYTEA"},
+      {"type_id": 1000022, "mapped_type": "BYTEA"},
+      {"type_id": 1000023, "mapped_type": "BYTEA"},
+      {"type_id": 1000024, "mapped_type": "JSONB"},
+      {"type_id": 1000025, "mapped_type": "GEOGRAPHY(Point, 4326)"},
+      {"type_id": 1000026, "mapped_type": "VARCHAR(255)"},
+      {"type_id": 1000027, "mapped_type": "INTERVAL"}
+    ]
+  }

@@ -1,0 +1,82 @@
+model:
+  - id: 3000001
+    namespace: e-commerce
+    family: inventory
+    name: Product
+    attributes: [2000001, 2000002, 2000004, 2000006]
+    unique_constraints:
+      - constraint_name: Unique SKU
+        attributes: [2000001]
+
+access:
+  find:
+    - name: "FindProductBySku"
+      request:
+        parameters: 
+          - attribute: "sku"
+      filter:
+        - attribute: "sku"
+          operator: "="
+          param_name: "sku"
+      attributes: ["sku", "name", "price", "stock_quantity"]
+  update:
+    - name: "UpdateProductPriceAndQuantityBySku"
+      request:
+        parameters: 
+          - attribute: "sku"
+      filter:
+        - attribute: "sku"
+          operator: "="
+          param_name: "12345"
+      set:
+        - attribute: "price"
+          value: 29.99
+        - attribute: "stock_quantity"
+          value: 50
+      autoincrement:
+        - attribute: "version"
+      capture_timestamp:
+        - attribute: "last_updated"
+  add:
+    - name: "AddNewProduct"
+      request:
+        parameters: 
+          - attribute: "sku"
+          - attribute: "name"
+          - attribute: "price"
+          - attribute: "stock_quantity"
+      values:
+        - attribute: "sku"
+          value: "67890"
+        - attribute: "name"
+          value: "New Product"
+        - attribute: "price"
+          value: 19.99
+        - attribute: "stock_quantity"
+          value: 100
+  add_or_replace:
+    - name: "AddOrReplaceProduct"
+      request:
+        parameters: 
+          - attribute: "sku"
+          - attribute: "name"
+          - attribute: "price"
+          - attribute: "stock_quantity"
+      values:
+        - attribute: "sku"
+          value: "67890"
+        - attribute: "name"
+          value: "New Product"
+        - attribute: "price"
+          value: 19.99
+        - attribute: "stock_quantity"
+          value: 100
+  delete:
+    - name: "DeleteProductBySku"
+      request:
+        parameters: 
+          - attribute: "sku"
+      filter:
+        - attribute: "sku"
+          operator: "="
+          param_name: "67890"

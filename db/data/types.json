@@ -1,0 +1,219 @@
+{"types": [
+    {
+      "id": 1000001,
+      "namespace": "default",
+      "family": "input",
+      "name": "text",
+      "element_type": "text",
+      "widget_type": "text_field"
+    },
+    {
+      "id": 1000002,
+      "namespace": "default",
+      "family": "input",
+      "name": "long_text",
+      "element_type": "text",
+      "widget_type": "long_text_field"
+    },
+    {
+      "id": 1000003,
+      "namespace": "default",
+      "family": "input",
+      "name": "decimal",
+      "element_type": "decimal",
+      "widget_type": "number_field"
+    },
+    {
+      "id": 1000004,
+      "namespace": "default",
+      "family": "input",
+      "name": "number",
+      "element_type": "number",
+      "widget_type": "number_field"
+    },
+    {
+      "id": 1000005,
+      "namespace": "default",
+      "family": "input",
+      "name": "currency",
+      "element_type": "currency",
+      "widget_type": "currency_field"
+    },
+    {
+      "id": 1000006,
+      "namespace": "default",
+      "family": "input",
+      "name": "quantity",
+      "element_type": "quantity",
+      "widget_type": "quantity_field"
+    },
+    {
+      "id": 1000007,
+      "namespace": "default",
+      "family": "input",
+      "name": "percentage",
+      "element_type": "percentage",
+      "widget_type": "percentage_field"
+    },
+    {
+      "id": 1000008,
+      "namespace": "default",
+      "family": "input",
+      "name": "email",
+      "element_type": "email",
+      "widget_type": "email_field"
+    },
+    {
+      "id": 1000009,
+      "namespace": "default",
+      "family": "input",
+      "name": "phone",
+      "element_type": "phone",
+      "widget_type": "phone_field"
+    },
+    {
+      "id": 1000010,
+      "namespace": "default",
+      "family": "input",
+      "name": "password",
+      "element_type": "password",
+      "widget_type": "password_field"
+    },
+    {
+      "id": 1000011,
+      "namespace": "default",
+      "family": "input",
+      "name": "boolean",
+      "element_type": "boolean",
+      "widget_type": "boolean_field"
+    },
+    {
+      "id": 1000012,
+      "namespace": "default",
+      "family": "input",
+      "name": "choice",
+      "element_type": "choice",
+      "widget_type": "choice_field"
+    },
+    {
+      "id": 1000013,
+      "namespace": "default",
+      "family": "input",
+      "name": "multi_choice",
+      "element_type": "multi_choice",
+      "widget_type": "multi_choice_field"
+    },
+    {
+      "id": 1000014,
+      "namespace": "default",
+      "family": "input",
+      "name": "year",
+      "element_type": "year",
+      "widget_type": "year_picker"
+    },
+    {
+      "id": 1000015,
+      "namespace": "default",
+      "family": "input",
+      "name": "month",
+      "element_type": "month",
+      "widget_type": "month_picker"
+    },
+    {
+      "id": 1000016,
+      "namespace": "default",
+      "family": "input",
+      "name": "date",
+      "element_type": "date",
+      "widget_type": "date_picker"
+    },
+    {
+      "id": 1000017,
+      "namespace": "default",
+      "family": "input",
+      "name": "day",
+      "element_type": "day",
+      "widget_type": "day_pickeer"
+    },
+    {
+      "id": 1000018,
+      "namespace": "default",
+      "family": "input",
+      "name": "time",
+      "element_type": "time",
+      "widget_type": "time_picker"
+    },
+    {
+      "id": 1000019,
+      "namespace": "default",
+      "family": "input",
+      "name": "datetime",
+      "element_type": "datetime",
+      "widget_type": "datetime_picker"
+    },
+    {
+      "id": 1000020,
+      "namespace": "default",
+      "family": "input",
+      "name": "image",
+      "element_type": "image",
+      "widget_type": "image_picker"
+    },
+    {
+      "id": 1000021,
+      "namespace": "default",
+      "family": "input",
+      "name": "audio",
+      "element_type": "audio",
+      "widget_type": "audio_picker"
+    },
+    {
+      "id": 1000022,
+      "namespace": "default",
+      "family": "input",
+      "name": "video",
+      "element_type": "video",
+      "widget_type": "video_picker"
+    },
+    {
+      "id": 1000023,
+      "namespace": "default",
+      "family": "input",
+      "name": "document",
+      "element_type": "document",
+      "widget_type": "document_picker"
+    },
+    {
+      "id": 1000024,
+      "namespace": "default",
+      "family": "input",
+      "name": "contact",
+      "element_type": "contact",
+      "widget_type": "contact_picker"
+    },
+    {
+      "id": 1000025,
+      "namespace": "default",
+      "family": "input",
+      "name": "location_pin",
+      "element_type": "location_pin",
+      "widget_type": "location_picker"
+    },
+    {
+      "id": 1000026,
+      "namespace": "default",
+      "family": "input",
+      "name": "url",
+      "element_type": "url",
+      "widget_type": "url_field"
+    },
+    {
+      "id": 1000027,
+      "namespace": "default",
+      "family": "input",
+      "name": "duration",
+      "element_type": "duration",
+      "widget_type": "duration_field"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+filter:
+  - attribute: "age"
+    operator: ">="
+    value: 30
+  - attribute: "status"
+    operator: "IN"
+    value: ["active", "pending"]
+  - operator: "OR"
+    conditions:
+      - attribute: "salary"
+        operator: ">"
+        value: 50000
+      - attribute: "position"
+        operator: "="
+        value: "manager"
+  - operator: "NOT"
+    conditions:
+      - attribute: "terminated"
+        operator: "="
+        value: true
+  - operator: "AND"
+    conditions:
+      - attribute: "name"
+        transformation: "CHAR_LENGTH"
+        operator: ">"
+        value: 5
+      - attribute: "created_at"
+        transformation: "DATE"
+        operator: "="
+        value: "2024-06-01"

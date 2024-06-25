@@ -1,0 +1,114 @@
+{
+    "models": [
+      {
+        "id": 3000001,
+        "namespace": "e-commerce",
+        "family": "inventory",
+        "name": "Product",
+        "attributes": [
+          2000001,
+          2000002,
+          2000003,
+          2000009
+        ],
+        "unique_constraints": [
+          {
+            "constraint_name": "Unique SKU",
+            "attributes": [
+              2000001
+            ]
+          }
+        ]
+      },
+      {
+        "id": 3000002,
+        "namespace": "e-commerce",
+        "family": "customer",
+        "name": "Customer",
+        "attributes": [
+          2000004,
+          2000005
+        ],
+        "unique_constraints": [
+          {
+            "constraint_name": "Unique Email",
+            "attributes": [
+              2000004
+            ]
+          }
+        ]
+      },
+      {
+        "id": 3000003,
+        "namespace": "e-commerce",
+        "family": "sales",
+        "name": "Order",
+        "attributes": [
+          2000006,
+          2000007
+        ],
+        "relationships": [
+          {
+            "type": "BelongsTo",
+            "target_model_id": 3000002
+          }
+        ]
+      },
+      {
+        "id": 3000004,
+        "namespace": "e-commerce",
+        "family": "inventory",
+        "name": "Category",
+        "attributes": [
+          2000008
+        ],
+        "unique_constraints": [
+          {
+            "constraint_name": "Unique Category Name",
+            "attributes": [
+              2000008
+            ]
+          }
+        ]
+      },
+      {
+        "id": 3000005,
+        "namespace": "e-commerce",
+        "family": "sales",
+        "name": "Order Item",
+        "attributes": [
+          2000010,
+          2000011
+        ],
+        "relationships": [
+          {
+            "type": "Child",
+            "target_model_id": 3000003
+          },
+          {
+            "type": "BelongsTo",
+            "target_model_id": 3000001
+          }
+        ]
+      },
+      {
+        "id": 3000006,
+        "namespace": "e-commerce",
+        "family": "catalog",
+        "name": "Inventory",
+        "attributes": [
+          2000001,
+          2000009
+        ]
+      },
+      {
+        "id": 3000007,
+        "namespace": "e-commerce",
+        "family": "sales",
+        "name": "Seller",
+        "attributes": [
+          2000012
+        ]
+      }
+    ]
+  }

@@ -1,0 +1,156 @@
+attributes:
+  # Basic product attributes
+  - id: 2001
+    namespace: e-commerce
+    family: product
+    name: sku
+    label: "SKU"
+    type_id: 1000001  # Text
+    validations:
+      - 1000002  # Max length
+      - 1000003  # Required
+
+  - id: 2002
+    namespace: e-commerce
+    family: product
+    name: product_name
+    label: "Product Name"
+    type_id: 1000001  # Text
+    validations:
+      - 1000002  # Max length
+      - 1000003  # Required
+
+  - id: 2003
+    namespace: e-commerce
+    family: product
+    name: description
+    label: "Product Description"
+    type_id: 1000002  # Long text
+
+  # Additional product attributes
+  - id: 2004
+    namespace: e-commerce
+    family: product
+    name: price
+    label: "Price"
+    type_id: 1000005  # Currency
+    validations:
+      - 1000014  # Max value
+      - 1000015  # Min value
+
+  - id: 2005
+    namespace: e-commerce
+    family: product
+    name: image_url
+    label: "Product Image URL"
+    type_id: 1000025  # URL
+
+  - id: 2006
+    namespace: e-commerce
+    family: product
+    name: stock_quantity
+    label: "Stock Quantity"
+    type_id: 1000006  # Quantity
+
+  # Customer attributes
+  - id: 2007
+    namespace: e-commerce
+    family: customer
+    name: email
+    label: "Email"
+    type_id: 1000008  # Email
+    validations:
+      - 1000004  # Email format
+
+  - id: 2008
+    namespace: e-commerce
+    family: customer
+    name: name
+    լlabel: "Full Name"
+    type_id: 1000001  # Text
+
+  - id: 2009
+    namespace: e-commerce
+    family: customer
+    name: shipping_address
+    label: "Shipping Address"
+    type_id: 1000002  # Long text
+
+  - id: 2010
+    namespace: e-commerce
+    family: customer
+    name: billing_address
+    label: "Billing Address"
+    type_id: 1000002  # Long text
+
+  - id: 2011
+    namespace: e-commerce
+    family: customer
+    name: phone_number
+    label: "Phone Number"
+    type_id: 1000009  # Phone
+
+  # Order and transaction attributes
+  - id: 2012
+    namespace: e-commerce
+    family: order
+    name: order_date
+    label: "Order Date"
+    type_id: 1000016  # Date
+
+  - id: 2013
+    namespace: e-commerce
+    family: order
+    name: order_status
+    label: "Order Status"
+    type_id: 1000012  # Choice
+
+  - id: 2014
+    namespace: e-commerce
+    family: order
+    name: payment_method
+    label: "Payment Method"
+    type_id: 1000012  # Choice
+
+  - id: 2015
+    namespace: e-commerce
+    family: order
+    name: total_amount
+    label: "Total Amount"
+    type_id: 1000005  # Currency
+
+  - id: 2016
+    namespace: e-commerce
+    family: review
+    name: rating
+    label: "Rating"
+    type_id: 1000007  # Percentage
+
+  - id: 2017
+    namespace: e-commerce
+    family: review
+    name: review_text
+    label: "Review Text"
+    type_id: 1000002  # Long text
+
+  # Seller attributes
+  - id: 2018
+    namespace: e-commerce
+    family: seller
+    name: seller_name
+    label: "Seller Name"
+    type_id: 1000001  # Text
+
+  - id: 2019
+    namespace: e-commerce
+    family: seller
+    name: seller_rating
+    label: "Seller Rating"
+    type_id: 1000007  # Percentage
+
+  - id: 2020
+    namespace: e-commerce
+    family: seller
+    name: seller_description
+    label: "Seller Description"
+    type_id: 1000002  # Long text
