@@ -67,7 +67,7 @@ func setup{{$.Model.Name}}DB(db *{{.Model.Name}}DB) error {
 
 // Generated access functions
 {{- range .Access.Find }}
-func {{ .Name }}(db *{{.Model.Name}}DB, accessRequest *AccessConfig) ([]{{$.Model.Name}}, error) {
+func {{ .Name }}(db *{{$.Model.Name}}DB, accessRequest *AccessConfig) ([]{{$.Model.Name}}, error) {
 	stmt := db.preparedCache["{{ .Name }}"]
 	rows, err := stmt.Query(QueryArgs(accessRequest, "READ"))
 	if err != nil {
@@ -122,10 +122,14 @@ func {{ .Name }}(db *{{.Model.Name}}DB, request *AccessConfig) (int64, bool, err
 {{- end }}
 
 {{- range .Access.Delete }}
-func {{ .Name }}(db *{{.Model.Name}}DB, request *AccessConfig) error {
+func {{ .Name }}(db *{{.Model.Name}}DB, request *AccessConfig) (int64, error) {
 	stmt := db.preparedCache["{{ .Name }}"]
-	_, err = stmt.Exec()
-	return err
+	result, err = stmt.Exec()
+	if err != nil {
+		return err
+	}
+	rowsAffected, err = result.RowsAffected()
+	return rowsAffected, err
 }
 {{- end }}
 `
@@ -146,15 +150,15 @@ func Join(args []string) string {
 	return strings.Join(args, ", ")
 }
 
-func WhereClause(filters []defs.Filter) string {
-	result, _ := PrepareFilters(filters)
-	return result
-}
+// func WhereClause(filters []defs.Filter) string {
+// 	result, _ := PrepareFilters(filters)
+// 	return result
+// }
 
-func PrepareWhereClause(filters []defs.Filter) string {
-	result, _ := PrepareFilters(filters)
-	return result
-}
+// func PrepareWhereClause(filters []defs.Filter) string {
+// 	result, _ := PrepareFilters(filters)
+// 	return result
+// }
 
 func AttributeNames(updates []defs.Update) string {
 	var attributes []string
@@ -191,7 +195,7 @@ func AutoincrementClause(attributes []string) string {
 func CaptureTimestampClause(attributes []string) string {
 	var clauses []string
 	for _, attribute := range attributes {
-		clauses = append(clauses, fmt.Sprintf("%s = now()", attribute))
+		clauses = append(clauses, fmt.Sprintf("%s = NOW()", attribute))
 	}
 	return strings.Join(clauses, ", ")
 }
@@ -214,26 +218,66 @@ func ApplyTransformation(attribute string, transformation string) string {
 func QueryArgs(request defs.Request) string {
 	var args []string
 	for _, param := range request.Parameters {
-		args = append(args, param.Attribute)
+		args = append(args, param.Param)
 	}
 	return strings.Join(args, ", ")
 }
 
 const findTemplate = `stmt := db.preparedCache["{{ .Name }}"]
-	rows, err := stmt.Query(QueryArgs(accessRequest, "READ"))
+values, err := {{ .Name }}ParseParams(reqeust)
+if err != nil {
+	return nil, err
+}
+rows, err := stmt.Query(values...)
+if err != nil {
+	return nil, err
+}
+defer rows.Close()
+
+var results []{{.ModelName}}
+for rows.Next() {
+	var item {{.ModelName}}
+	err := rows.Scan({{ .ScanAttributes }})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	results = append(results, item)
+}
+return results, nil`
 
-	var results []{{.ModelName}}
-	for rows.Next() {
-		var item {{.ModelName}}
-		err := rows.Scan({{ .ScanAttributes }})
-		if err != nil {
-			return nil, err
-		}
-		results = append(results, item)
-	}
-	return results, nil
-`
+const updateTemplate = `stmt := db.preparedCache["{{ .Name }}"]	
+result, err := stmt.Exec({{ .Filter | QueryArgs}})
+if err != nil {
+	return 0, err
+}
+rowsAffected, err := result.RowsAffected()
+return rowsAffected, err`
+
+const addTemplate = `stmt := db.preparedCache["{{ .Name }}"]
+var id int64
+err = stmt.QueryRow().Scan(&id)
+return id, err`
+
+const addOrReplaceTemplate = `stmt := db.preparedCache["{{ .Name }}"]
+var id int64
+var inserted bool
+err = stmt.QueryRow().Scan(&id, &inserted)
+return id, inserted, err`
+
+const deleteTemplate = `stmt := db.preparedCache["{{ .Name }}"]	
+result, err := stmt.Exec({{ .Filter | QueryArgs}})
+if err != nil {
+	return 0, err
+}
+rowsAffected, err := result.RowsAffected()
+return rowsAffected, err`
+
+const readParamsToValues = `var values []interface{}
+{{- range $paramRef := .ParameterRefs }}
+{{- if eq $paramRef.Index -1}}
+values = append(values, request.params.{{ $paramRef.Name }})
+{{- else }}
+values = append(values, request.params.{{ $paramRef.Name }}.([]interface{})[{{ $paramRef.Index }}])
+{{- end }}
+{{- end }}
+return values`

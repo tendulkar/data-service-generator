@@ -14,4 +14,5 @@ model:
   baseDir: "./db"
   typesPath: "data/types.json"
   validationsPath: "data/validations.json"
-  postgresTypeMapsPath: "postgres/type_maps.json"
+  postgresTypeMapsPath: "postgres/data/type_maps.json"
+  attributesPath: "data/attributes.json"

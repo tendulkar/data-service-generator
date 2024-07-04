@@ -25,4 +25,5 @@ type ModelConfig struct {
 	TypesPath            string
 	ValidationsPath      string
 	PostgresTypeMapsPath string
+	AttributesPath       string
 }

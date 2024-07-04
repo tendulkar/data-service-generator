@@ -19,6 +19,12 @@ type Validation struct {
 	Params   []string `yaml:"params"`
 }
 
+type AttributeRow struct {
+	UniqueID
+	TypeId        int64   `yaml:"type_id" json:"type_id"`
+	ValidationIds []int64 `yaml:"validations" json:"validations"`
+}
+
 type Attribute struct {
 	UniqueID
 	Type        TypeInfo     `yaml:"type"`
@@ -64,6 +70,6 @@ type DataAccessDef struct {
 }
 
 type TypeMapping struct {
-	TypeID     int64  `yaml:"type_id"`
-	MappedType string `yaml:"mapped_type"`
+	TypeID     int64  `yaml:"type_id" json:"type_id"`
+	MappedType string `yaml:"mapped_type" json:"mapped_type"`
 }

@@ -40,7 +40,6 @@ func filterData(startCounter uint32) ([]defs.Filter, string, []defs.ParameterRef
 		startCounter, startCounter+1, startCounter+2, startCounter+3, startCounter+4, startCounter+5, startCounter+6, startCounter+7, startCounter+8, startCounter+9)
 
 	paramsMap := []defs.ParameterRef{
-		{},
 		{Name: "age", Index: -1},
 		{Name: "status", Index: -1},
 		{Name: "salary_range", Index: 0},
@@ -73,7 +72,6 @@ func valueMapData(startCounter uint32) ([]defs.Update, string, []defs.ParameterR
 		startCounter, startCounter+1, startCounter+2, startCounter+3, startCounter+4, startCounter+5, startCounter+6, startCounter+7, startCounter+8)
 
 	paramsMap := []defs.ParameterRef{
-		{},
 		{Name: "age", Index: -1},
 		{Name: "status", Index: -1},
 		{Name: "salary", Index: -1},
@@ -113,7 +111,6 @@ func TestPrepareFilters(t *testing.T) {
 
 	expected := "(age >= $1 AND status = ANY($2) AND ((salary BETWEEN $3 AND $4) OR position = $5 OR (department = $6 AND experience >= $7)) AND NOT(terminated = $8) AND CHAR_LENGTH(name) > $9 AND DATE(created_at) = $10)"
 	expectedParamsMap := []defs.ParameterRef{
-		{Index: 0, Name: ""},
 		{Index: -1, Name: "age"},
 		{Index: -1, Name: "status"},
 		{Index: 0, Name: "salary_range"},
@@ -157,7 +154,7 @@ func TestPrepareUpdateStmt(t *testing.T) {
 	// Test case: empty AccessConfig
 	updateConfig := &defs.AccessConfig{}
 	setClause, whereClause, paramsMap := PrepareUpdateStmt(updateConfig)
-	if setClause != "" || whereClause != "" || len(paramsMap) != 1 {
+	if setClause != "" || whereClause != "" || len(paramsMap) != 0 {
 		t.Errorf("Set clause should be empty, where clause should be empty, and params map should be empty")
 	}
 
@@ -193,9 +190,6 @@ func TestPrepareUpdateStmt(t *testing.T) {
 	expectedWhereClause := "(attribute1 = $3 AND attribute2 > $4)"
 	expectedParamsMap := []defs.ParameterRef{
 		{
-			Name: "",
-		},
-		{
 			Name:  "param3",
 			Index: -1,
 		},
@@ -227,7 +221,7 @@ func TestMakeUpdateQuery(t *testing.T) {
 	table := "test_table"
 
 	updateList, expectedSetClause, expectedUpdateParams := valueMapData(uint32(1))
-	filter, expectedFilterClause, expectedFilterParams := filterData(uint32(len(expectedUpdateParams)))
+	filter, expectedFilterClause, expectedFilterParams := filterData(uint32(len(expectedUpdateParams)) + 1)
 	updateConfig := &defs.AccessConfig{
 		Set:    updateList,
 		Filter: filter,
@@ -236,7 +230,7 @@ func TestMakeUpdateQuery(t *testing.T) {
 	expectedQuery := fmt.Sprintf("UPDATE test_table SET %v WHERE (1 = 1) AND %v", expectedSetClause, expectedFilterClause)
 	expectedParams := []defs.ParameterRef{}
 	expectedParams = append(expectedParams, expectedUpdateParams...)
-	expectedParams = append(expectedParams, expectedFilterParams[1:]...)
+	expectedParams = append(expectedParams, expectedFilterParams...)
 	query, params := MakeUpdateQuery(table, updateConfig)
 	assert.Equal(t, expectedQuery, query)
 	assert.Equal(t, expectedParams, params)
@@ -249,7 +243,7 @@ func TestMakeAddQuery(t *testing.T) {
 		Values: []defs.Update{{Attribute: "attr1", ParamName: "p1"}, {Attribute: "attr2", ParamName: "p2"}},
 	}
 	expectedQuery := "INSERT INTO test_table (attr1, attr2) VALUES ($1, $2) RETURNING id"
-	expectedParams := []defs.ParameterRef{{}, {Name: "p1", Index: -1}, {Name: "p2", Index: -1}}
+	expectedParams := []defs.ParameterRef{{Name: "p1", Index: -1}, {Name: "p2", Index: -1}}
 
 	query, params := MakeAddQuery(table, addConfig)
 	assert.Equal(t, expectedQuery, query)
@@ -262,7 +256,7 @@ func TestMakeAddOrReplaceQuery(t *testing.T) {
 		Values: []defs.Update{{Attribute: "attr1", ParamName: "p1"}, {Attribute: "attr2", ParamName: "p2"}},
 	}
 	expectedQuery := "INSERT INTO test_table (attr1, attr2) VALUES ($1, $2) ON CONFLICT DO UPDATE SET attr1 = $3, attr2 = $4 RETURNING id, (xmax = 0)"
-	expectedParams := []defs.ParameterRef{{}, {Name: "p1", Index: -1}, {Name: "p2", Index: -1}, {Name: "p1", Index: -1}, {Name: "p2", Index: -1}}
+	expectedParams := []defs.ParameterRef{{Name: "p1", Index: -1}, {Name: "p2", Index: -1}, {Name: "p1", Index: -1}, {Name: "p2", Index: -1}}
 
 	query, params := MakeAddOrReplaceQuery(table, addConfig)
 	assert.Equal(t, expectedQuery, query)
@@ -286,7 +280,7 @@ func TestMakeDeleteQuery(t *testing.T) {
 		},
 	}
 	expectedQuery := "DELETE FROM test_table WHERE (1 = 1) AND (attr1 = $1 AND attr2 > $2)"
-	expectedParams := []defs.ParameterRef{{}, {Name: "p1", Index: -1}, {Name: "p2", Index: -1}}
+	expectedParams := []defs.ParameterRef{{Name: "p1", Index: -1}, {Name: "p2", Index: -1}}
 
 	query, params := MakeDeleteQuery(table, deleteConfig)
 	assert.Equal(t, expectedQuery, query)

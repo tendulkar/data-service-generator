@@ -118,7 +118,6 @@ func prepareFilters(filters []defs.Filter, counter *uint32, paramsMap *[]defs.Pa
 func PrepareFilters(filters []defs.Filter) (string, []defs.ParameterRef) {
 	counter := uint32(1)
 	paramsMap := make([]defs.ParameterRef, 0)
-	paramsMap = append(paramsMap, defs.ParameterRef{Index: 0})
 	result := prepareFilters(filters, &counter, &paramsMap)
 	return result, paramsMap
 }
@@ -128,7 +127,6 @@ func PrepareFilters(filters []defs.Filter) (string, []defs.ParameterRef) {
 func PrepareUpdateStmt(updateConfig *defs.AccessConfig) (string, string, []defs.ParameterRef) {
 	counter := uint32(1)
 	paramsMap := make([]defs.ParameterRef, 0)
-	paramsMap = append(paramsMap, defs.ParameterRef{Index: 0})
 
 	setClause := setClause(updateConfig.Set, &counter, &paramsMap)
 	autoincClause := autoincrementClause(updateConfig.Autoincrement)
@@ -157,7 +155,6 @@ func PrepareUpdateStmt(updateConfig *defs.AccessConfig) (string, string, []defs.
 func PrepareAddStmt(addConfig *defs.AccessConfig) (string, []defs.ParameterRef) {
 	counter := uint32(1)
 	paramsMap := make([]defs.ParameterRef, 0)
-	paramsMap = append(paramsMap, defs.ParameterRef{Index: 0})
 	insertClause := argsClause(addConfig.Values, &counter, &paramsMap)
 	return insertClause, paramsMap
 }
@@ -165,7 +162,6 @@ func PrepareAddStmt(addConfig *defs.AccessConfig) (string, []defs.ParameterRef) 
 func PrepareAddOrReplaceStmt(addConfig *defs.AccessConfig) (string, string, []defs.ParameterRef) {
 	counter := uint32(1)
 	paramsMap := make([]defs.ParameterRef, 0)
-	paramsMap = append(paramsMap, defs.ParameterRef{Index: 0})
 	insertClause := argsClause(addConfig.Values, &counter, &paramsMap)
 	setClause := setClause(addConfig.Values, &counter, &paramsMap)
 	return insertClause, setClause, paramsMap
@@ -174,7 +170,6 @@ func PrepareAddOrReplaceStmt(addConfig *defs.AccessConfig) (string, string, []de
 func PrepareDeleteStmt(deleteConfig *defs.AccessConfig) (string, []defs.ParameterRef) {
 	counter := uint32(1)
 	paramsMap := make([]defs.ParameterRef, 0)
-	paramsMap = append(paramsMap, defs.ParameterRef{Index: 0})
 	whereClause := prepareFilters(deleteConfig.Filter, &counter, &paramsMap)
 	return whereClause, paramsMap
 }

@@ -14,15 +14,11 @@ type Filter struct {
 }
 
 type Model struct {
-	ID         int    `yaml:"id"`
-	Namespace  string `yaml:"namespace"`
-	Family     string `yaml:"family"`
-	Name       string `yaml:"name"`
-	Attributes []struct {
-		ID   int    `yaml:"id"`
-		Name string `yaml:"name"`
-		Type string `yaml:"type"`
-	} `yaml:"attributes"`
+	ID                int     `yaml:"id"`
+	Namespace         string  `yaml:"namespace"`
+	Family            string  `yaml:"family"`
+	Name              string  `yaml:"name"`
+	Attributes        []int64 `yaml:"attributes"`
 	UniqueConstraints []struct {
 		ConstraintName string `yaml:"constraint_name"`
 		Attributes     []int  `yaml:"attributes"`
@@ -43,7 +39,7 @@ type ModelConfig struct {
 }
 
 type Parameter struct {
-	Attribute string `yaml:"attribute"`
+	Param string `yaml:"param"`
 }
 
 type Request struct {

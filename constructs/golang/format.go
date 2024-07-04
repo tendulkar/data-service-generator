@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	Indent = "  "
+	Indent = "\t"
 )
 
 func IndentCode(code string, indentSize int) string {

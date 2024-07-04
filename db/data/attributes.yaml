@@ -1,6 +1,6 @@
 attributes:
   # Basic product attributes
-  - id: 2001
+  - id: 2000001
     namespace: e-commerce
     family: product
     name: sku
@@ -10,7 +10,7 @@ attributes:
       - 1000002  # Max length
       - 1000003  # Required
 
-  - id: 2002
+  - id: 2000002
     namespace: e-commerce
     family: product
     name: product_name
@@ -20,7 +20,7 @@ attributes:
       - 1000002  # Max length
       - 1000003  # Required
 
-  - id: 2003
+  - id: 2000003
     namespace: e-commerce
     family: product
     name: description
@@ -28,7 +28,7 @@ attributes:
     type_id: 1000002  # Long text
 
   # Additional product attributes
-  - id: 2004
+  - id: 2000004
     namespace: e-commerce
     family: product
     name: price
@@ -38,14 +38,14 @@ attributes:
       - 1000014  # Max value
       - 1000015  # Min value
 
-  - id: 2005
+  - id: 2000005
     namespace: e-commerce
     family: product
     name: image_url
     label: "Product Image URL"
     type_id: 1000025  # URL
 
-  - id: 2006
+  - id: 2000006
     namespace: e-commerce
     family: product
     name: stock_quantity
@@ -53,7 +53,7 @@ attributes:
     type_id: 1000006  # Quantity
 
   # Customer attributes
-  - id: 2007
+  - id: 2000007
     namespace: e-commerce
     family: customer
     name: email
@@ -62,28 +62,28 @@ attributes:
     validations:
       - 1000004  # Email format
 
-  - id: 2008
+  - id: 2000008
     namespace: e-commerce
     family: customer
     name: name
     լlabel: "Full Name"
     type_id: 1000001  # Text
 
-  - id: 2009
+  - id: 2000009
     namespace: e-commerce
     family: customer
     name: shipping_address
     label: "Shipping Address"
     type_id: 1000002  # Long text
 
-  - id: 2010
+  - id: 2000010
     namespace: e-commerce
     family: customer
     name: billing_address
     label: "Billing Address"
     type_id: 1000002  # Long text
 
-  - id: 2011
+  - id: 2000011
     namespace: e-commerce
     family: customer
     name: phone_number
@@ -91,42 +91,42 @@ attributes:
     type_id: 1000009  # Phone
 
   # Order and transaction attributes
-  - id: 2012
+  - id: 2000012
     namespace: e-commerce
     family: order
     name: order_date
     label: "Order Date"
     type_id: 1000016  # Date
 
-  - id: 2013
+  - id: 2000013
     namespace: e-commerce
     family: order
     name: order_status
     label: "Order Status"
     type_id: 1000012  # Choice
 
-  - id: 2014
+  - id: 2000014
     namespace: e-commerce
     family: order
     name: payment_method
     label: "Payment Method"
     type_id: 1000012  # Choice
 
-  - id: 2015
+  - id: 2000015
     namespace: e-commerce
     family: order
     name: total_amount
     label: "Total Amount"
     type_id: 1000005  # Currency
 
-  - id: 2016
+  - id: 2000016
     namespace: e-commerce
     family: review
     name: rating
     label: "Rating"
     type_id: 1000007  # Percentage
 
-  - id: 2017
+  - id: 2000017
     namespace: e-commerce
     family: review
     name: review_text
@@ -134,21 +134,21 @@ attributes:
     type_id: 1000002  # Long text
 
   # Seller attributes
-  - id: 2018
+  - id: 2000018
     namespace: e-commerce
     family: seller
     name: seller_name
     label: "Seller Name"
     type_id: 1000001  # Text
 
-  - id: 2019
+  - id: 2000019
     namespace: e-commerce
     family: seller
     name: seller_rating
     label: "Seller Rating"
     type_id: 1000007  # Percentage
 
-  - id: 2020
+  - id: 2000020
     namespace: e-commerce
     family: seller
     name: seller_description

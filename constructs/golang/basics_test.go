@@ -7,24 +7,74 @@ import (
 	"testing"
 )
 
+func TestTranslateToGoType(t *testing.T) {
+	// Define test cases with input type names and expected GoTypes and errors
+	testCases := []struct {
+		typeName          string
+		expectedGoType    *GoType
+		expectedErrorText string
+	}{
+		{
+			"int16",
+			&GoInt16Type,
+			"",
+		},
+		{
+			"float32",
+			&GoFloat32Type,
+			"",
+		},
+		{
+			"[]complex64",
+			&GoComplex64ArrayType,
+			"",
+		},
+		{
+			"map[interface{}]interface{}",
+			&GoInterfaceInterfaceMapType,
+			"",
+		},
+		{
+			"unknown",
+			&GoType{},
+			"type unknown not found",
+		},
+	}
+
+	// Run the test cases
+	for _, tc := range testCases {
+		actualGoType, err := TranslateToGoType(tc.typeName)
+
+		// Check if the actual GoType matches the expected GoType
+		if !reflect.DeepEqual(actualGoType, tc.expectedGoType) {
+			t.Errorf("For type %s: expected GoType %v, got %v", tc.typeName, tc.expectedGoType, actualGoType)
+		}
+
+		// Check if the actual error message matches the expected error message
+		if err != nil && err.Error() != tc.expectedErrorText {
+			t.Errorf("For type %s: expected error message %s, got %s", tc.typeName, tc.expectedErrorText, err.Error())
+		}
+	}
+}
+
 func TestFunctionCodeGeneration(t *testing.T) {
 	f := Function{
 		Name: "Update",
-		Parameters: []Parameter{
-			{Name: "data", Type: GoType{Name: "Data", Source: "github.com/example/data"}},
+		Parameters: []*Parameter{
+			{Name: "data", Type: GoType{Name: "*Data", Source: "github.com/example/data"}},
 		},
-		Returns:  []GoType{{Name: "error", Source: ""}},
+		Returns:  []*GoType{{Name: "error", Source: ""}},
 		Body:     GoCodeBlock{CodeBlock: "this.Data.Merge(data)\nreturn nil", Sources: []string{"github.com/example/data"}},
 		Receiver: &Receiver{Name: "this", Type: GoType{Name: "Processor", Source: ""}},
 	}
 
-	expectedImports := "import (\n  \"github.com/example/data\"\n)"
+	expectedImports := fmt.Sprintf("import (\n%s\"github.com/example/data\"\n)", Indent)
 	expectedSignature := "func (this *Processor) Update(data *Data) error {"
-	expectedBody := "  this.Data.Merge(data)\n  return nil"
+	expectedBody := fmt.Sprintf("%sthis.Data.Merge(data)\n%sreturn nil", Indent, Indent)
 	result, resultImports := f.FunctionCode()
 	resultImportCode := generateImports(resultImports)
 
-	fmt.Println("Testing FunctionCodeGeneration, generated code is: \n", result)
+	// fmt.Println("Testing FunctionCodeGeneration, generated code is: \n", result)
 
 	if !strings.Contains(resultImportCode, expectedImports) {
 		t.Errorf("Expected to find import statement: %s, got %s", expectedImports, resultImportCode)
@@ -38,19 +88,20 @@ func TestFunctionCodeGeneration(t *testing.T) {
 }
 
 func TestStructCodeGeneration(t *testing.T) {
+
 	s := Struct{
 		Name: "Processor",
-		Fields: []Parameter{
+		Fields: []*Field{
 			{Name: "Data", Type: GoType{Name: "Data", Source: "github.com/example/data"}},
 			{Name: "Logger", Type: GoType{Name: "Logger", Source: "github.com/sirupsen/logrus"}},
 		},
-		Functions: []Function{
+		Functions: []*Function{
 			{
 				Name: "Process",
-				Parameters: []Parameter{
+				Parameters: []*Parameter{
 					{Name: "input", Type: GoType{Name: "[]byte", Source: ""}},
 				},
-				Returns:  []GoType{{Name: "error", Source: ""}},
+				Returns:  []*GoType{{Name: "error", Source: ""}},
 				Body:     GoCodeBlock{CodeBlock: "this.Logger.Info(\"Processing\")\nreturn nil", Sources: []string{"github.com/sirupsen/logrus"}},
 				Receiver: &Receiver{Name: "this", Type: GoType{Name: "Processor", Source: ""}},
 			},
@@ -59,7 +110,7 @@ func TestStructCodeGeneration(t *testing.T) {
 
 	// expectedImports := "import (\n  \"github.com/example/data\"\n  \"github.com/sirupsen/logrus\"\n)"
 	expectedImports := map[string]bool{"github.com/example/data": true, "github.com/sirupsen/logrus": true}
-	expectedStruct := "type Processor struct {\n  Data *Data\n  Logger *Logger\n}"
+	expectedStruct := fmt.Sprintf("type Processor struct {\n%sData *Data\n%sLogger *Logger\n}", Indent, Indent)
 	expectedMethod := "func (this *Processor) Process(input []byte) error {"
 	result, imports := s.StructCode()
 
@@ -76,41 +127,46 @@ func TestStructCodeGeneration(t *testing.T) {
 }
 func TestGenerateGoFile(t *testing.T) {
 	// Define structs, functions, variables, constants, and init function
-	structs := []Struct{
+	structs := []*Struct{
 		{
 			Name: "Logger",
-			Fields: []Parameter{
+			Fields: []*Field{
 				{Name: "Level", Type: GoType{Name: "int", Source: ""}},
 			},
-			Functions: []Function{
+			Functions: []*Function{
 				{
 					Name:       "SetLevel",
-					Parameters: []Parameter{{Name: "level", Type: GoType{Name: "int", Source: ""}}},
-					Returns:    []GoType{},
+					Parameters: []*Parameter{{Name: "level", Type: GoType{Name: "int", Source: ""}}},
+					Returns:    []*GoType{},
 					Body:       GoCodeBlock{CodeBlock: "l.Level = level"},
 					Receiver:   &Receiver{Name: "l", Type: GoType{Name: "Logger", Source: ""}},
 				},
 			},
 		},
 	}
-	functions := []Function{
+	functions := []*Function{
 		{
 			Name:       "NewLogger",
-			Parameters: []Parameter{},
-			Returns:    []GoType{{Name: "*Logger", Source: ""}},
+			Parameters: []*Parameter{},
+			Returns:    []*GoType{{Name: "*Logger", Source: ""}},
 			Body:       GoCodeBlock{CodeBlock: "return &Logger{Level: 0}"},
 		},
 	}
-	variables := []Variable{
+	variables := []*Variable{
 		{Name: "defaultLogger", Type: GoType{Name: "*Logger"}, Value: "NewLogger()"},
 	}
-	constants := []Constant{
+	constants := []*Constant{
 		{Name: "DefaultLevel", Type: GoType{Name: "int"}, Value: "1"},
 	}
 	initFunction := &GoCodeBlock{CodeBlock: "defaultLogger.SetLevel(DefaultLevel)"}
-	generatedCode := GenerateGoFile("main", structs, functions, variables, constants, initFunction)
+	generatedCode, err := GenerateGoFile("main", structs, functions, variables, constants, initFunction)
 
-	// fmt.Println("Testing GenerateGoFile, generated code is: \n", generatedCode)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// formattedCode, err := format.Source([]byte(generatedCode))
+	// fmt.Printf("Testing GenerateGoFile, generated code is: \n%s\nFormatted code is: \n%s\nError: %v\n", generatedCode, string(formattedCode), err)
 	// Check package declaration
 	if !strings.Contains(generatedCode, "package main") {
 		t.Error("Package declaration is missing or incorrect")

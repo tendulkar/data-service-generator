@@ -31,23 +31,23 @@ func MustReadJsonTo[T any](filename string) *T {
 	return t
 }
 
-func ReadJsonToSlice[T any](filename string) ([]T, error) {
+func ReadJsonToSlice[T any](filename string, key string) ([]T, error) {
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		base.LOG.Error("Error reading json file", "error", err, "filename", filename)
 		return nil, err
 	}
-	var t []T
+	t := make(map[string][]T)
 	err = json.Unmarshal(data, &t)
 	if err != nil {
 		base.LOG.Error("Error parsing json", "error", err, "filename", filename)
-		return t, err
+		return nil, err
 	}
-	return t, nil
+	return t[key], nil
 }
 
-func MustReadJsonToSlice[T any](filename string) []T {
-	t, err := ReadJsonToSlice[T](filename)
+func MustReadJsonToSlice[T any](filename string, key string) []T {
+	t, err := ReadJsonToSlice[T](filename, key)
 	if err != nil {
 		base.LOG.Error("MustReadJsonToSlice FAILED PANICING", "error", err, "filename", filename)
 		panic(err)
