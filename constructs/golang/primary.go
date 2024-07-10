@@ -49,8 +49,9 @@ type CodeElement struct {
 	RepeatCond         *RepeatByCondition          `yaml:"repeat_cond,omitempty"`
 	RepeatInitCond     *RepeatInitConditionElement `yaml:"repeat_init_cond,omitempty"`
 	RepeatLoop         *RepeatLoopElement          `yaml:"repeat,omitempty"`
+	RepeatN            *RepeatNElement             `yaml:"repeat_n,omitempty"`
 	Iterate            *IterateElement             `yaml:"iterate,omitempty"`
-	Return             []string                    `yaml:"return,omitempty"`
+	Return             interface{}                 `yaml:"return,omitempty"`
 	StructCreation     *StructCreation             `yaml:"create,omitempty"`
 	GoRoutine          *GoRoutine                  `yaml:"async,omitempty"`
 	FunctionCall       *FunctionCall               `yaml:"call,omitempty"`
@@ -181,14 +182,21 @@ type NewAssignment struct {
 }
 
 type IfElement struct {
-	Condition *CodeElement   `yaml:"cond"`
-	Then      []*CodeElement `yaml:"then"`
-	Else      []*CodeElement `yaml:"else,omitempty"`
+	// Simpilfied construct for if and else
+	Condition    interface{}    `yaml:"cond"`
+	Then         []*CodeElement `yaml:"then"`
+	Break        interface{}    `yaml:"break,omitempty"`
+	Continue     interface{}    `yaml:"continue,omitempty"`
+	BreakElse    interface{}    `yaml:"break_else,omitempty"`
+	ContinueElse interface{}    `yaml:"continue_else,omitempty"`
+	Else         []*CodeElement `yaml:"else,omitempty"`
 }
 
 type OneCaseElement struct {
 	Condition interface{}    `yaml:"cond"`
 	Body      []*CodeElement `yaml:"body"`
+	Break     interface{}    `yaml:"break,omitempty"`
+	Continue  interface{}    `yaml:"continue,omitempty"`
 }
 
 type CaseElement []*OneCaseElement
@@ -223,6 +231,13 @@ type RepeatLoopElement struct {
 	Body      []*CodeElement `yaml:"body"`
 }
 
+type RepeatNElement struct {
+	Iterator string         `yaml:"iter"`
+	Start    string         `yaml:"start"`
+	Limit    string         `yaml:"limit"`
+	Body     []*CodeElement `yaml:"body"`
+}
+
 type IterateElement struct {
 	Variables []string       `yaml:"variables"`
 	RangeOn   *CodeElement   `yaml:"range_on"`
@@ -230,10 +245,10 @@ type IterateElement struct {
 }
 
 type StructCreation struct {
-	Output     interface{}    `yaml:"out,omitempty"`
-	NewOutput  interface{}    `yaml:"nout,omitempty"`
-	StructType string         `yaml:"struct_type"`
-	Values     []*CodeElement `yaml:"values"`
+	Output     interface{} `yaml:"out,omitempty"`
+	NewOutput  interface{} `yaml:"nout,omitempty"`
+	StructType string      `yaml:"struct_type"`
+	Values     interface{} `yaml:"values"`
 }
 
 type GoRoutine struct {
@@ -242,18 +257,18 @@ type GoRoutine struct {
 }
 
 type FunctionCall struct {
-	Output    interface{}    `yaml:"out,omitempty"`
-	NewOutput interface{}    `yaml:"nout,omitempty"`
-	Function  string         `yaml:"function"`
-	Params    []*CodeElement `yaml:"params"`
+	Output    interface{} `yaml:"out,omitempty"`
+	NewOutput interface{} `yaml:"nout,omitempty"`
+	Function  string      `yaml:"func"`
+	Params    interface{} `yaml:"args"`
 }
 
 type MemberFunctionCall struct {
-	Output    interface{}    `yaml:"out,omitempty"`
-	NewOutput interface{}    `yaml:"nout,omitempty"`
-	Receiver  string         `yaml:"obj"`
-	Function  string         `yaml:"function"`
-	Params    []*CodeElement `yaml:"params"`
+	Output    interface{} `yaml:"out,omitempty"`
+	NewOutput interface{} `yaml:"nout,omitempty"`
+	Receiver  string      `yaml:"obj"`
+	Function  string      `yaml:"function"`
+	Params    interface{} `yaml:"args"`
 }
 
 type Literal struct {
@@ -292,7 +307,7 @@ func resolveTypeLiteral(v interface{}, t string) string {
 func resolveArrayInterface(arr []interface{}, sep string) string {
 	values := make([]string, len(arr))
 	for i, v := range arr {
-		values[i] = resolveCodeElementOrString(v)
+		values[i] = resolveStringOrCodeElement(v, sep)
 	}
 
 	return strings.Join(values, sep)
@@ -322,32 +337,32 @@ func resolveLiteral(v interface{}) string {
 	}
 }
 
-func resolveCodeElementOrString(v interface{}) string {
-	switch rv := v.(type) {
-	case *Literal:
-		return resolveLiteral(rv.Value)
-	case *CodeElement:
-		return rv.ToCode()
-	default:
-		return fmt.Sprintf("%v", rv)
-	}
-}
+// func resolveCodeElementOrString(v interface{}) string {
+// 	switch rv := v.(type) {
+// 	case *Literal:
+// 		return resolveLiteral(rv.Value)
+// 	case *CodeElement:
+// 		return rv.ToCode()
+// 	default:
+// 		return fmt.Sprintf("%v", rv)
+// 	}
+// }
 
 func binaryOpToCode(op string, b *BinaryOp) string {
-	lvalue := resolveCodeElementOrString(b.Left)
-	rvalue := resolveCodeElementOrString(b.Right)
+	lvalue := resolveStringOrCodeElement(b.Left, ", ")
+	rvalue := resolveStringOrCodeElement(b.Right, ", ")
 
 	if b.Output == "" && b.NewOutput == "" {
-		return fmt.Sprintf("%s %s %s", lvalue, op, rvalue)
+		return fmt.Sprintf("(%s %s %s)", lvalue, op, rvalue)
 	} else if b.NewOutput == "" {
-		return fmt.Sprintf("%s = %s %s %s", b.Output, lvalue, op, rvalue)
+		return fmt.Sprintf("%s = (%s %s %s)", b.Output, lvalue, op, rvalue)
 	} else {
-		return fmt.Sprintf("%s := %s %s %s", b.NewOutput, lvalue, op, rvalue)
+		return fmt.Sprintf("%s := (%s %s %s)", b.NewOutput, lvalue, op, rvalue)
 	}
 }
 
 func unaryOpToCode(op string, u *UnaryOp) string {
-	inpValue := resolveCodeElementOrString(u.Input)
+	inpValue := resolveStringOrCodeElement(u.Input, ", ")
 
 	if u.Output == "" && u.NewOutput == "" {
 		return fmt.Sprintf("%s %s", op, inpValue)
@@ -359,7 +374,7 @@ func unaryOpToCode(op string, u *UnaryOp) string {
 }
 
 func unaryPostOpToCode(op string, u *UnaryOp) string {
-	inpValue := resolveCodeElementOrString(u.Input)
+	inpValue := resolveStringOrCodeElement(u.Input, ", ")
 	if u.Output == "" && u.NewOutput == "" {
 		return fmt.Sprintf("%s %s", inpValue, op)
 	} else if u.NewOutput == "" {
@@ -465,68 +480,122 @@ func (p *PreDecrement) ToCode() string {
 	return unaryOpToCode("--", &p.UnaryOp)
 }
 
-func resolveStringOrCodeElement(v interface{}) string {
+func resolveStringOrCodeElement(v interface{}, sep string) string {
 	switch rv := v.(type) {
 	case []interface{}:
-		return resolveArrayInterface(rv, ", ")
+		return resolveArrayInterface(rv, sep)
 	case []string:
-		return strings.Join(rv, ", ")
+		return strings.Join(rv, sep)
 	case string:
 		return rv
 	case *Literal:
 		return resolveLiteral(rv.Value)
 	case []*CodeElement:
-		rvCodes := make([]string, len(rv))
-		for i, v := range rv {
-			rvCodes[i] = v.ToCode()
-		}
-		return strings.Join(rvCodes, ", ")
+		return bodyCodeGen(rv)
 	case *CodeElement:
 		return rv.ToCode()
+	case map[string]interface{}:
+		st := convertMapToStruct[*CodeElement](rv)
+		return st.ToCode()
 	default:
+		if rv == nil {
+			return ""
+		}
 		return fmt.Sprintf("%v", rv)
 	}
+}
+
+func buidBreakStatement(v interface{}) string {
+	if v == nil {
+		return ""
+	}
+	switch rv := v.(type) {
+	case bool:
+		if rv {
+			return "break"
+		}
+		return ""
+	case string:
+		// break with label
+		return fmt.Sprintf("break %s", rv)
+	default:
+		if rv == nil {
+			return ""
+		}
+		return fmt.Sprintf("%v", rv)
+	}
+}
+
+func buildContinueStatement(v interface{}) string {
+	if v == nil {
+		return ""
+	}
+	switch rv := v.(type) {
+	case bool:
+		if rv {
+			return "continue"
+		}
+		return ""
+	case string:
+		// continue with label
+		return fmt.Sprintf("continue %s", rv)
+	default:
+		if rv == nil {
+			return ""
+		}
+		return fmt.Sprintf("%v", rv)
+	}
+}
+
+func bodyWithBreakAndContinue(body []*CodeElement, b interface{}, c interface{}) string {
+
+	bodyCode := resolveStringOrCodeElement(body, "\n")
+	if b == nil && c == nil {
+		return bodyCode
+	}
+	if b != nil {
+		breakCode := buidBreakStatement(b)
+		return fmt.Sprintf("%s\n%s%s", bodyCode, Indent, breakCode)
+	}
+	continueCode := buildContinueStatement(c)
+	return fmt.Sprintf("%s\n%s%s", bodyCode, Indent, continueCode)
 }
 
 // Implementation of ToCode for each struct
 func (a *Assignment) ToCode() string {
 	leftSide := resolveStringOrArray(a.Left)
-	rightSide := resolveStringOrCodeElement(a.Right)
+	rightSide := resolveStringOrCodeElement(a.Right, ", ")
 	return fmt.Sprintf("%s = %s", leftSide, rightSide)
 }
 
 func (na *NewAssignment) ToCode() string {
 	leftSide := resolveStringOrArray(na.Left)
-	rightSide := resolveStringOrCodeElement(na.Right)
+	rightSide := resolveStringOrCodeElement(na.Right, ", ")
 	return fmt.Sprintf("%s := %s", leftSide, rightSide)
 }
 
 func (ie *IfElement) ToCode() string {
-	var thenPart, elsePart string
-	for _, then := range ie.Then {
-		thenPart += then.ToCode() + "\n"
-	}
+	condCode := resolveStringOrCodeElement(ie.Condition, " && ")
+	thenCode := bodyWithBreakAndContinue(ie.Then, ie.Break, ie.Continue)
 	if len(ie.Else) > 0 {
-		elsePart = "else {\n"
-		for _, el := range ie.Else {
-			elsePart += el.ToCode() + "\n"
-		}
-		elsePart += "}"
+		elseCode := bodyWithBreakAndContinue(ie.Else, ie.BreakElse, ie.ContinueElse)
+		return fmt.Sprintf("if %s {\n%s\n} else {\n%s\n}", condCode, thenCode, elseCode)
 	}
-	return fmt.Sprintf("if %s {\n%s}%s", ie.Condition.ToCode(), thenPart, elsePart)
+	return fmt.Sprintf("if %s {\n%s\n}", condCode, thenCode)
 }
 
 func (ce CaseElement) ToCode() string {
 	code := ""
 	for i, caseElem := range ce {
-		condCode := resolveStringOrCodeElement(caseElem.Condition)
-		bodyCode := resolveStringOrCodeElement(caseElem.Body)
+		condCode := resolveStringOrCodeElement(caseElem.Condition, " && ")
+		bodyCode := bodyWithBreakAndContinue(caseElem.Body, caseElem.Break, caseElem.Continue)
+		base.LOG.Info("Case element", "i", i, "caseElem", caseElem, "condCode", condCode, "bodyCode", bodyCode)
 		if i == 0 {
 			code = fmt.Sprintf("if %s {\n%s\n}", condCode, bodyCode)
 		} else if condCode == "" {
-			code = fmt.Sprintf("else {\n%s\n}", bodyCode)
+			code = fmt.Sprintf("%s else {\n%s\n}", code, bodyCode)
 		} else {
-			code = fmt.Sprintf("else if %s {\n%s\n}", condCode, bodyCode)
+			code = fmt.Sprintf("%s else if %s {\n%s\n}", code, condCode, bodyCode)
 		}
 	}
 	return code
@@ -535,8 +604,8 @@ func (ce CaseElement) ToCode() string {
 func (mc MatchCases) ToCode() string {
 	code := ""
 	for _, caseElem := range mc.MatchCases {
-		condCode := resolveStringOrCodeElement(caseElem.MatchWith)
-		bodyCode := resolveStringOrCodeElement(caseElem.Body)
+		condCode := resolveStringOrCodeElement(caseElem.MatchWith, ", ")
+		bodyCode := resolveStringOrCodeElement(caseElem.Body, "\n")
 		if condCode == "" {
 			code = fmt.Sprintf("\ndefault:\n%s%s", Indent, bodyCode)
 		} else {
@@ -554,7 +623,8 @@ func bodyCodeGen(body []*CodeElement) string {
 		if bCode == "" {
 			continue
 		}
-		bodyStrings = append(bodyStrings, fmt.Sprintf("%s%s", Indent, bCode))
+		indentedBody := IndentCode(bCode, 1)
+		bodyStrings = append(bodyStrings, indentedBody)
 	}
 	return strings.Join(bodyStrings, "\n")
 }
@@ -590,6 +660,15 @@ func (rl *RepeatLoopElement) ToCode() string {
 	return fmt.Sprintf("for %s; %s; %s {\n%s\n}", strings.Join(initStrings, ", "), rl.Condition.ToCode(), strings.Join(stepStrings, ", "), bodyCode)
 }
 
+func (rn *RepeatNElement) ToCode() string {
+	bodyCode := bodyCodeGen(rn.Body)
+	start := "0"
+	if rn.Start != "" {
+		start = rn.Start
+	}
+	return fmt.Sprintf("for %s := %s; %s < %s; %s++ {\n%s\n}", rn.Iterator, start, rn.Iterator, rn.Limit, rn.Iterator, bodyCode)
+}
+
 // ToCode for IterateElement: 'for' loop for iterating over slices, arrays, or maps
 func (it *IterateElement) ToCode() string {
 	bodyCode := bodyCodeGen(it.Body)
@@ -597,11 +676,8 @@ func (it *IterateElement) ToCode() string {
 }
 
 func (sc *StructCreation) ToCode() string {
-	var params []string
-	for _, v := range sc.Values {
-		params = append(params, v.ToCode())
-	}
-	return fmt.Sprintf("new(%s){%s}", sc.StructType, strings.Join(params, ", "))
+	paramsCode := resolveStringOrCodeElement(sc.Values, ", ")
+	return fmt.Sprintf("new(%s){%s}", sc.StructType, paramsCode)
 }
 
 func (gr *GoRoutine) ToCode() string {
@@ -635,20 +711,15 @@ func resolveOutputs(output, newOutput interface{}) string {
 
 func (fc *FunctionCall) ToCode() string {
 	leftSide := resolveOutputs(fc.Output, fc.NewOutput)
-	var params []string
-	for _, p := range fc.Params {
-		params = append(params, p.ToCode())
-	}
-	return fmt.Sprintf("%s%s(%s)", leftSide, fc.Function, strings.Join(params, ", "))
+	paramsCode := resolveStringOrCodeElement(fc.Params, ", ")
+	base.LOG.Info("FunctionCall ToCode", "fc", *fc, "leftSide", leftSide, "params", paramsCode)
+	return fmt.Sprintf("%s%s(%s)", leftSide, fc.Function, paramsCode)
 }
 
 func (mfc *MemberFunctionCall) ToCode() string {
 	leftSide := resolveOutputs(mfc.Output, mfc.NewOutput)
-	var params []string
-	for _, p := range mfc.Params {
-		params = append(params, p.ToCode())
-	}
-	return fmt.Sprintf("%s%s.%s(%s)", leftSide, mfc.Receiver, mfc.Function, strings.Join(params, ", "))
+	paramsCode := resolveStringOrCodeElement(mfc.Params, ", ")
+	return fmt.Sprintf("%s%s.%s(%s)", leftSide, mfc.Receiver, mfc.Function, paramsCode)
 }
 
 func convertMapToStruct[T CodeBlock](m map[string]interface{}) T {
@@ -666,9 +737,17 @@ func genericBinaryOpToCode[T CodeBlock](i interface{}, op string) string {
 	base.LOG.Debug("genericBinaryOpToCode", "i", i, "op", op, "type", fmt.Sprintf("%T", i))
 	switch v := i.(type) {
 	case []string:
-		return strings.Join(v, fmt.Sprintf(" %s ", op))
+		binOp := BinaryOp{
+			Left:  v[0],
+			Right: v[1],
+		}
+		return binaryOpToCode(op, &binOp)
 	case []interface{}:
-		return resolveArrayInterface(v, fmt.Sprintf(" %s ", op))
+		binOp := BinaryOp{
+			Left:  v[0],
+			Right: v[1],
+		}
+		return binaryOpToCode(op, &binOp)
 	case map[string]interface{}:
 		st := convertMapToStruct[T](v)
 		return st.ToCode()
@@ -811,7 +890,7 @@ func NewAssignToCode(a *NewAssignment) string {
 }
 
 func ReturnToCode(a interface{}) string {
-	return fmt.Sprintf("return %v", resolveStringOrCodeElement(a))
+	return fmt.Sprintf("return %v", resolveStringOrCodeElement(a, ", "))
 }
 
 // Define templates for each construct
@@ -909,6 +988,7 @@ if {{template "code" .Condition}} {
 {{if .RepeatCond}}{{.RepeatCond.ToCode}}{{end}}
 {{if .RepeatInitCond}}{{.RepeatInitCond.ToCode}}{{end}}
 {{if .RepeatLoop}}{{.RepeatLoop.ToCode}}{{end}}
+{{if .RepeatN}}{{.RepeatN.ToCode}}{{end}}
 {{if .Iterate}}{{.Iterate.ToCode}}{{end}}
 {{if .StructCreation}}{{.StructCreation.ToCode}}{{end}}
 {{if .GoRoutine}}{{.GoRoutine.ToCode}}{{end}}
@@ -928,7 +1008,7 @@ func (ce *CodeElement) ToCode() string {
 		base.LOG.Error("Template execution error: %v", err)
 		panic(err)
 	}
-	return strings.Trim(buf.String(), "\n\t ")
+	return strings.Trim(buf.String(), "\n")
 }
 
 func CodeElementToCode(ce *CodeElement) string {
