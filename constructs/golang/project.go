@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 )
@@ -20,8 +21,9 @@ type UnitModule struct {
 }
 
 type Module struct {
-	Name  string       `yaml:"name"`
-	Units []UnitModule `yaml:"units"`
+	Name         string       `yaml:"name"`
+	Units        []UnitModule `yaml:"units"`
+	ChildModules []*Module    `yaml:"child_modules"`
 }
 
 type ProjectRequirement struct {
@@ -78,15 +80,23 @@ func writeFile(path, data string) {
 }
 
 // GenerateGoMod creates the go.mod file based on project configurations
-func GenerateGoMod(project Project, basePath string) {
+func GenerateGoMod(project Project, cleanDeps map[string]string, basePath string) {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("module %s\n", project.Name))
 	sb.WriteString(fmt.Sprintf("\ngo %s\n", project.GoVersion))
 
+	allDeps := map[string]string{}
+	for dep, version := range cleanDeps {
+		allDeps[dep] = version
+	}
+
 	if len(project.Requirements) > 0 {
 		sb.WriteString("\nrequire (\n")
 		for _, req := range project.Requirements {
-			sb.WriteString(fmt.Sprintf("\t%s %s\n", req.Name, req.Version))
+			allDeps[req.Name] = req.Version
+		}
+		for dep, version := range allDeps {
+			sb.WriteString(fmt.Sprintf("\t%s %s\n", dep, version))
 		}
 		sb.WriteString(")\n")
 	}
@@ -142,29 +152,63 @@ func (u *UnitModule) GenerateUnitCode(filepath string, moduleName string) map[De
 	if err != nil {
 		log.Fatalf("Unable to generate source code: %v", err)
 	}
-	writeFile(filepath, srcCode)
+
+	goSrcPath := path.Join(filepath, u.Name+".go")
+	writeFileFun(goSrcPath, srcCode)
 
 	return deps
 }
 
-func (m *Module) GenerateModuleCode(modulePath string) (string, error) {
+func (m *Module) GenerateModuleCode(modulePath string) (string, map[Dependency]bool, error) {
 	filepath := filepath.Join(modulePath, m.Name)
-
+	dependencies := make(map[Dependency]bool)
 	for _, unit := range m.Units {
-		unit.GenerateUnitCode(filepath, m.Name)
+		deps := unit.GenerateUnitCode(filepath, m.Name)
+		for dep := range deps {
+			dependencies[dep] = true
+		}
 	}
 
-	return filepath, nil
+	for _, child := range m.ChildModules {
+		_, childDeps, err := child.GenerateModuleCode(filepath)
+		if err != nil {
+			return "", nil, err
+		}
+
+		for dep := range childDeps {
+			dependencies[dep] = true
+		}
+	}
+
+	return filepath, dependencies, nil
 }
 
 func GenerateProject(project *Project, localPath string) (string, error) {
-	// Generate the go.mod file
-	GenerateGoMod(*project, localPath)
+	dependencies := make(map[Dependency]bool)
 
 	for path, module := range project.ModuleMap {
 		// Generate the go.mod file
-		module.GenerateModuleCode(filepath.Join(localPath, path))
+		_, deps, err := module.GenerateModuleCode(filepath.Join(localPath, path))
+		if err != nil {
+			return "", err
+		}
+
+		for dep := range deps {
+			dependencies[dep] = true
+		}
 	}
+
+	cleanDeps := make(map[string]string)
+
+	for dep := range dependencies {
+		if _, ok := cleanDeps[dep.Source]; ok {
+			return "", fmt.Errorf("duplicate dependency: %v with version %s", dep, cleanDeps[dep.Source])
+		}
+		cleanDeps[dep.Source] = dep.Version
+	}
+
+	// Generate the go.mod file
+	GenerateGoMod(*project, cleanDeps, localPath)
 
 	return "", nil
 }

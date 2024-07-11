@@ -21,6 +21,8 @@ func TestGenerateGoMod(t *testing.T) {
 		writeFileFun = actualWriteFileFun
 	}()
 
+	cleanDeps := make(map[string]string)
+	cleanDeps["github.com/stretchr/testify"] = "v1.0.2"
 	project := Project{
 		Name:         "example.com/testproject",
 		GoVersion:    "1.15",
@@ -31,13 +33,14 @@ func TestGenerateGoMod(t *testing.T) {
 		Retracts:   []*ProjectRetract{{Version: "v1.2.3", Comment: "Critical bug"}},
 	}
 
-	GenerateGoMod(project, basePath)
+	GenerateGoMod(project, cleanDeps, basePath)
 
 	expectedGoMod := `module example.com/testproject
 
 go 1.15
 
 require (
+	github.com/stretchr/testify v1.0.2
 	github.com/example/library v1.0.0
 )
 
