@@ -16,8 +16,8 @@ type UnitModule struct {
 	Functions    []*Function  `yaml:"functions"`
 	Variables    []*Variable  `yaml:"variables"`
 	Constants    []*Constant  `yaml:"constants"`
-	InitFunction *CodeElement `yaml:"init_fn"`
-	MainFunction *CodeElement `yaml:"main"`
+	InitFunction CodeElements `yaml:"init_fn"`
+	MainFunction CodeElements `yaml:"main"`
 }
 
 type Module struct {
@@ -130,22 +130,16 @@ func GenerateGoMod(project Project, cleanDeps map[string]string, basePath string
 }
 
 func (u *UnitModule) GenerateUnitCode(filepath string, moduleName string) map[Dependency]bool {
-	// srcFile := GoSourceFile{
-	// 	Package:      moduleName,
-	// 	Structs:      u.Structs,
-	// 	Functions:    u.Functions,
-	// 	Variables:    u.Variables,
-	// 	Constants:    u.Constants,
-	// 	InitFunction: u.InitFunction,
-	// 	MainFunction: u.MainFunction,
-	// }
 
 	srcFile := GoSourceFile{
-		Package:   moduleName,
-		Structs:   u.Structs,
-		Functions: u.Functions,
-		Variables: u.Variables,
-		Constants: u.Constants,
+		Package:      moduleName,
+		Imports:      u.Imports,
+		Structs:      u.Structs,
+		Functions:    u.Functions,
+		Variables:    u.Variables,
+		Constants:    u.Constants,
+		InitFunction: u.InitFunction,
+		MainFunction: u.MainFunction,
 	}
 
 	srcCode, deps, err := srcFile.SourceCode()

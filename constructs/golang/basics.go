@@ -376,6 +376,10 @@ func GenerateGoFile(packageName string, structs []*Struct, functions []*Function
 	var constantDefinitions []string
 	var allDependencies map[Dependency]bool = make(map[Dependency]bool)
 
+	for _, imp := range additionalImports {
+		allImports[imp] = true
+	}
+
 	for _, s := range structs {
 		collectImports(allImports, nil, s.Fields, nil)
 		for _, function := range s.Functions {
