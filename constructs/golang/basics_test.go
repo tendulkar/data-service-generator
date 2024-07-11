@@ -63,8 +63,19 @@ func TestFunctionCodeGeneration(t *testing.T) {
 		Parameters: []*Parameter{
 			{Name: "data", Type: GoType{Name: "*Data", Source: "github.com/example/data"}},
 		},
-		Returns:  []*GoType{{Name: "error", Source: ""}},
-		Body:     GoCodeBlock{CodeBlock: "this.Data.Merge(data)\nreturn nil", Sources: []string{"github.com/example/data"}},
+		Returns: []*GoType{{Name: "error", Source: ""}},
+		Body: CodeElements{{
+			Imports: []string{"github.com/example/data"},
+			MemberFunctionCall: &MemberFunctionCall{
+				Receiver: "this.Data",
+				Function: "Merge",
+				Params:   "data",
+			},
+		},
+			{
+				Return: "nil",
+			},
+		},
 		Receiver: &Receiver{Name: "this", Type: GoType{Name: "Processor", Source: ""}},
 	}
 
@@ -74,6 +85,7 @@ func TestFunctionCodeGeneration(t *testing.T) {
 	result, resultImports := f.FunctionCode()
 	resultImportCode := generateImports(resultImports)
 
+	t.Log("Testing FunctionCodeGeneration, generated code is: \n", result)
 	// fmt.Println("Testing FunctionCodeGeneration, generated code is: \n", result)
 
 	if !strings.Contains(resultImportCode, expectedImports) {
@@ -101,8 +113,22 @@ func TestStructCodeGeneration(t *testing.T) {
 				Parameters: []*Parameter{
 					{Name: "input", Type: GoType{Name: "[]byte", Source: ""}},
 				},
-				Returns:  []*GoType{{Name: "error", Source: ""}},
-				Body:     GoCodeBlock{CodeBlock: "this.Logger.Info(\"Processing\")\nreturn nil", Sources: []string{"github.com/sirupsen/logrus"}},
+				Returns: []*GoType{{Name: "error", Source: ""}},
+				Body: []*CodeElement{
+					{
+						MemberFunctionCall: &MemberFunctionCall{
+							Receiver: "this.Logger",
+							Function: "Info",
+							Params: []*Literal{
+								{Value: "Processing"},
+							},
+						},
+						Imports: []string{"github.com/sirupsen/logrus"},
+					},
+					{
+						Return: "nil",
+					},
+				},
 				Receiver: &Receiver{Name: "this", Type: GoType{Name: "Processor", Source: ""}},
 			},
 		},
@@ -114,6 +140,7 @@ func TestStructCodeGeneration(t *testing.T) {
 	expectedMethod := "func (this *Processor) Process(input []byte) error {"
 	result, imports := s.StructCode()
 
+	t.Log("Testing StructCodeGeneration, generated code is: \n", result)
 	// fmt.Println("Testing StructCodeGeneration, generated code is: \n", result, "\n", imports)
 	if !reflect.DeepEqual(expectedImports, imports) {
 		t.Errorf("Expected to find import statements: %v, got %v", expectedImports, imports)
@@ -138,8 +165,15 @@ func TestGenerateGoFile(t *testing.T) {
 					Name:       "SetLevel",
 					Parameters: []*Parameter{{Name: "level", Type: GoType{Name: "int", Source: ""}}},
 					Returns:    []*GoType{},
-					Body:       GoCodeBlock{CodeBlock: "l.Level = level"},
-					Receiver:   &Receiver{Name: "l", Type: GoType{Name: "Logger", Source: ""}},
+					Body: []*CodeElement{
+						{
+							Assign: &Assignment{
+								Left:  "l.Level",
+								Right: "level",
+							},
+						},
+					},
+					Receiver: &Receiver{Name: "l", Type: GoType{Name: "Logger", Source: ""}},
 				},
 			},
 		},
@@ -149,7 +183,13 @@ func TestGenerateGoFile(t *testing.T) {
 			Name:       "NewLogger",
 			Parameters: []*Parameter{},
 			Returns:    []*GoType{{Name: "*Logger", Source: ""}},
-			Body:       GoCodeBlock{CodeBlock: "return &Logger{Level: 0}"},
+			Body: []*CodeElement{
+				{
+					Return: &CodeElement{
+						StructCreation: &StructCreation{StructType: "Logger", KeyValues: KeyValues{{Key: "Level", Value: "0"}}},
+					},
+				},
+			},
 		},
 	}
 	variables := []*Variable{
@@ -158,13 +198,22 @@ func TestGenerateGoFile(t *testing.T) {
 	constants := []*Constant{
 		{Name: "DefaultLevel", Type: GoType{Name: "int"}, Value: "1"},
 	}
-	initFunction := &GoCodeBlock{CodeBlock: "defaultLogger.SetLevel(DefaultLevel)"}
-	generatedCode, err := GenerateGoFile("main", structs, functions, variables, constants, initFunction)
+	initFunction := CodeElements{
+		{
+			MemberFunctionCall: &MemberFunctionCall{
+				Receiver: "defaultLogger",
+				Function: "SetLevel",
+				Params:   "DefaultLevel",
+			},
+		},
+	}
+	generatedCode, _, err := GenerateGoFile("main", structs, functions, variables, constants, initFunction, nil, nil, nil)
 
 	if err != nil {
 		t.Error(err)
 	}
 
+	t.Log("Testing GenerateGoFile, generated code is: \n", generatedCode)
 	// formattedCode, err := format.Source([]byte(generatedCode))
 	// fmt.Printf("Testing GenerateGoFile, generated code is: \n%s\nFormatted code is: \n%s\nError: %v\n", generatedCode, string(formattedCode), err)
 	// Check package declaration

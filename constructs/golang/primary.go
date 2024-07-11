@@ -54,11 +54,42 @@ type CodeElement struct {
 	Return             interface{}                 `yaml:"return,omitempty"`
 	StructCreation     *StructCreation             `yaml:"create,omitempty"`
 	GoRoutine          *GoRoutine                  `yaml:"async,omitempty"`
+	DeferRoutine       *DeferRoutine               `yaml:"finally,omitempty"`
 	FunctionCall       *FunctionCall               `yaml:"call,omitempty"`
 	MemberFunctionCall *MemberFunctionCall         `yaml:"obj_call,omitempty"`
 	Steps              []*CodeElement              `yaml:"steps,omitempty"`
 	Imports            []string                    `yaml:"imports,omitempty"`
+	Dependencies       []Dependency                `yaml:"dependencies,omitempty"`
 	Literal            interface{}                 `yaml:"lit,omitempty"`
+}
+
+type CodeElements []*CodeElement
+
+func (c CodeElements) ToCode() string {
+	var buf bytes.Buffer
+	for i, v := range c {
+		buf.WriteString(v.ToCode())
+		if i < len(c)-1 {
+			buf.WriteString("\n")
+		}
+	}
+	return buf.String()
+}
+
+func (c CodeElements) Imports() []string {
+	var imports []string
+	for _, v := range c {
+		imports = append(imports, v.Imports...)
+	}
+	return imports
+}
+
+func (c CodeElements) Dependencies() []Dependency {
+	var deps []Dependency
+	for _, v := range c {
+		deps = append(deps, v.Dependencies...)
+	}
+	return deps
 }
 
 type BinaryOp struct {
@@ -244,14 +275,27 @@ type IterateElement struct {
 	Body      []*CodeElement `yaml:"body"`
 }
 
+type KeyValue struct {
+	Key   string      `yaml:"key"`
+	Value interface{} `yaml:"value"`
+}
+
+type KeyValues []*KeyValue
+
 type StructCreation struct {
-	Output     interface{} `yaml:"out,omitempty"`
-	NewOutput  interface{} `yaml:"nout,omitempty"`
-	StructType string      `yaml:"struct_type"`
-	Values     interface{} `yaml:"values"`
+	Output      interface{} `yaml:"out,omitempty"`
+	NewOutput   interface{} `yaml:"nout,omitempty"`
+	StructType  string      `yaml:"struct_type"`
+	KeyValues   KeyValues   `yaml:"values"`
+	NoReference bool        `yaml:"no_ref,omitempty"`
 }
 
 type GoRoutine struct {
+	FunctionCall       *CodeElement `yaml:"call"`
+	MemberFunctionCall *CodeElement `yaml:"obj_call"`
+}
+
+type DeferRoutine struct {
 	FunctionCall       *CodeElement `yaml:"call"`
 	MemberFunctionCall *CodeElement `yaml:"obj_call"`
 }
@@ -261,6 +305,8 @@ type FunctionCall struct {
 	NewOutput interface{} `yaml:"nout,omitempty"`
 	Function  string      `yaml:"func"`
 	Params    interface{} `yaml:"args"`
+	Defer     bool        `yaml:"defer,omitempty"`
+	Async     bool        `yaml:"async,omitempty"`
 }
 
 type MemberFunctionCall struct {
@@ -269,6 +315,8 @@ type MemberFunctionCall struct {
 	Receiver  string      `yaml:"obj"`
 	Function  string      `yaml:"function"`
 	Params    interface{} `yaml:"args"`
+	Defer     bool        `yaml:"defer,omitempty"`
+	Async     bool        `yaml:"async,omitempty"`
 }
 
 type Literal struct {
@@ -328,7 +376,12 @@ func resolveLiteral(v interface{}) string {
 		} else {
 			return resolveTypeLiteral(rv.Value, rv.Type)
 		}
-
+	case *Literal:
+		if rv.Type == "" {
+			return resolveLiteral(rv.Value)
+		} else {
+			return resolveTypeLiteral(rv.Value, rv.Type)
+		}
 	case []interface{}:
 		return resolveArrayInterface(rv, ", ")
 
@@ -490,6 +543,12 @@ func resolveStringOrCodeElement(v interface{}, sep string) string {
 		return rv
 	case *Literal:
 		return resolveLiteral(rv.Value)
+	case []*Literal:
+		codeParts := make([]string, len(rv))
+		for i, v := range rv {
+			codeParts[i] = resolveLiteral(v)
+		}
+		return strings.Join(codeParts, sep)
 	case []*CodeElement:
 		return bodyCodeGen(rv)
 	case *CodeElement:
@@ -519,9 +578,6 @@ func buidBreakStatement(v interface{}) string {
 		// break with label
 		return fmt.Sprintf("break %s", rv)
 	default:
-		if rv == nil {
-			return ""
-		}
 		return fmt.Sprintf("%v", rv)
 	}
 }
@@ -540,9 +596,6 @@ func buildContinueStatement(v interface{}) string {
 		// continue with label
 		return fmt.Sprintf("continue %s", rv)
 	default:
-		if rv == nil {
-			return ""
-		}
 		return fmt.Sprintf("%v", rv)
 	}
 }
@@ -675,13 +728,40 @@ func (it *IterateElement) ToCode() string {
 	return fmt.Sprintf("for %s := range %s {\n%s\n}", strings.Join(it.Variables, ", "), it.RangeOn.ToCode(), bodyCode)
 }
 
+func (kv *KeyValue) ToCode() string {
+	value := resolveStringOrCodeElement(kv.Value, ", ")
+	return fmt.Sprintf("%s: %s", kv.Key, value)
+}
+
+func (kvs KeyValues) ToCode() string {
+	kvCodeParts := make([]string, len(kvs))
+	for i, kv := range kvs {
+		kvCode := kv.ToCode()
+		kvCodeParts[i] = kvCode
+	}
+	return strings.Join(kvCodeParts, "\n")
+}
+
 func (sc *StructCreation) ToCode() string {
-	paramsCode := resolveStringOrCodeElement(sc.Values, ", ")
-	return fmt.Sprintf("new(%s){%s}", sc.StructType, paramsCode)
+	fieldsCode := sc.KeyValues.ToCode()
+	if sc.NoReference {
+		return fmt.Sprintf("%s{%s}", sc.StructType, fieldsCode)
+	}
+	return fmt.Sprintf("&%s{%s}", sc.StructType, fieldsCode)
 }
 
 func (gr *GoRoutine) ToCode() string {
+	if gr.MemberFunctionCall != nil {
+		return fmt.Sprintf("go %s()", gr.MemberFunctionCall.ToCode())
+	}
 	return fmt.Sprintf("go %s()", gr.FunctionCall.ToCode())
+}
+
+func (dr *DeferRoutine) ToCode() string {
+	if dr.MemberFunctionCall != nil {
+		return fmt.Sprintf("defer %s()", dr.MemberFunctionCall.ToCode())
+	}
+	return fmt.Sprintf("defer %s()", dr.FunctionCall.ToCode())
 }
 
 func resolveStringOrArray(s interface{}) string {
@@ -713,12 +793,22 @@ func (fc *FunctionCall) ToCode() string {
 	leftSide := resolveOutputs(fc.Output, fc.NewOutput)
 	paramsCode := resolveStringOrCodeElement(fc.Params, ", ")
 	base.LOG.Info("FunctionCall ToCode", "fc", *fc, "leftSide", leftSide, "params", paramsCode)
+	if fc.Defer {
+		return fmt.Sprintf("defer %s(%s)", fc.Function, paramsCode)
+	} else if fc.Async {
+		return fmt.Sprintf("go %s(%s)", fc.Function, paramsCode)
+	}
 	return fmt.Sprintf("%s%s(%s)", leftSide, fc.Function, paramsCode)
 }
 
 func (mfc *MemberFunctionCall) ToCode() string {
 	leftSide := resolveOutputs(mfc.Output, mfc.NewOutput)
 	paramsCode := resolveStringOrCodeElement(mfc.Params, ", ")
+	if mfc.Defer {
+		return fmt.Sprintf("defer %s.%s(%s)", mfc.Receiver, mfc.Function, paramsCode)
+	} else if mfc.Async {
+		return fmt.Sprintf("go %s.%s(%s)", mfc.Receiver, mfc.Function, paramsCode)
+	}
 	return fmt.Sprintf("%s%s.%s(%s)", leftSide, mfc.Receiver, mfc.Function, paramsCode)
 }
 
@@ -992,6 +1082,7 @@ if {{template "code" .Condition}} {
 {{if .Iterate}}{{.Iterate.ToCode}}{{end}}
 {{if .StructCreation}}{{.StructCreation.ToCode}}{{end}}
 {{if .GoRoutine}}{{.GoRoutine.ToCode}}{{end}}
+{{if .DeferRoutine}}{{.DeferRoutine.ToCode}}{{end}}
 {{if .FunctionCall}}{{.FunctionCall.ToCode}}{{end}}
 {{if .MemberFunctionCall}}{{.MemberFunctionCall.ToCode}}{{end}}
 {{if .Return}}{{return .Return}}{{end}}

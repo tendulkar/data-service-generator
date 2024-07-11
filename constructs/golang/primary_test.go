@@ -77,7 +77,7 @@ func TestCodeElement_ToCode(t *testing.T) {
 			}}},
 		},
 	}
-	expected = "if (a > b) {\na = (a + b)\n}"
+	expected = "if (a > b) {\n\ta = (a + b)\n}"
 	if result := ce.ToCode(); result != expected {
 		t.Errorf("ToCode() = %v, want %v", result, expected)
 	}

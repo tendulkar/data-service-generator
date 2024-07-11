@@ -9,8 +9,8 @@ import (
 
 // GoType represents a type in Go with a name and an optional import source.
 type GoType struct {
-	Name   string // Name of the type, could be a funciton too. example: func(logger *zap.Logger) (*zap.Logger, error)
-	Source string // Import path, empty if it's a built-in type
+	Name   string `yaml:"name"`             // Name of the type, could be a funciton too. example: func(logger *zap.Logger) (*zap.Logger, error)
+	Source string `yaml:"source,omitempty"` // Import path, empty if it's a built-in type
 }
 
 var (
@@ -130,8 +130,8 @@ func TranslateToGoType(typeName string) (*GoType, error) {
 
 // Parameter represents a function parameter, using GoType.
 type Parameter struct {
-	Name string
-	Type GoType
+	Name string `yaml:"name"`
+	Type GoType `yaml:"type"`
 }
 
 // GoCodeBlock represents a block of code with optional additional imports.
@@ -141,43 +141,53 @@ type GoCodeBlock struct {
 }
 
 type Variable struct {
-	Name  string
-	Type  GoType
-	Value string
+	Name  string `yaml:"name"`
+	Type  GoType `yaml:"type,omitempty"`
+	Value string `yaml:"value"`
 }
 
 type Constant struct {
-	Name  string
-	Type  GoType
-	Value string
+	Name  string `yaml:"name"`
+	Type  GoType `yaml:"type,omitempty"`
+	Value string `yaml:"value"`
+}
+
+type Dependency struct {
+	Source  string `yaml:"source"`
+	Version string `yaml:"version"`
 }
 
 // Function represents a Go function definition.
 type Function struct {
-	Name       string
-	Parameters []*Parameter
-	Returns    []*GoType
-	Body       GoCodeBlock
-	Receiver   *Receiver // Nil if not a member function
+	Name         string       `yaml:"name,omitempty"`
+	Parameters   []*Parameter `yaml:"params,omitempty"`
+	Returns      []*GoType    `yaml:"returns,omitempty"`
+	Body         CodeElements `yaml:"body,omitempty"`
+	Receiver     *Receiver    `yaml:"receiver,omitempty"` // Nil if not a member function
+	Dependencies []Dependency `yaml:"dependencies,omitempty"`
 }
 
 // Receiver represents the receiver of a Go method.
 type Receiver struct {
-	Name string
-	Type GoType
+	Name string `yaml:"name"`
+	Type GoType `yaml:"type"`
 }
 
 type Field struct {
-	Name string
-	Type GoType
-	Tag  string
+	Name string `yaml:"name,omitempty"`
+	Type GoType `yaml:"type"`
+	Tag  string `yaml:"tag,omitempty"`
 }
 
 // Struct represents a Go struct with member functions.
 type Struct struct {
-	Name      string
-	Fields    []*Field // Using Parameter as it has both name and type
-	Functions []*Function
+	Name      string      `yaml:"name,omitempty"`
+	Fields    []*Field    `yaml:"fields,omitempty"` // Using Parameter as it has both name and type
+	Functions []*Function `yaml:"functions,omitempty"`
+
+	// Additional import paths, not all imports, call StructCode to get all imports
+	Imports      []string     `yaml:"imports,omitempty"`
+	Dependencies []Dependency `yaml:"dependencies,omitempty"`
 }
 
 // StructCode generates the Go code for the struct, including its member functions.
@@ -208,8 +218,12 @@ func (s Struct) StructCode() (string, map[string]bool) {
 		}
 		funcDefs = append(funcDefs, fnCode)
 	}
-	for src := range gatherSources(nil, s.Fields, nil) {
+	for src := range gatherSources(nil, nil, s.Fields, nil) {
 		allSources[src] = true
+	}
+
+	for _, imp := range s.Imports {
+		allSources[imp] = true
 	}
 
 	return fmt.Sprintf("%s\n%s", structDef, strings.Join(funcDefs, "\n\n")), allSources
@@ -240,10 +254,7 @@ func (f Function) FunctionCode() (string, map[string]bool) {
 	returnStr := formatReturnTypes(returns)
 
 	// Generate all required import statements
-	allImports := gatherSources(f.Parameters, nil, f.Returns)
-	for _, src := range f.Body.Sources {
-		allImports[src] = true
-	}
+	allImports := gatherSources(f.Parameters, f.Body, nil, f.Returns)
 
 	receiver := ""
 	if f.Receiver != nil {
@@ -254,32 +265,38 @@ func (f Function) FunctionCode() (string, map[string]bool) {
 		receiver = fmt.Sprintf("(%s %s) ", f.Receiver.Name, receiverType)
 	}
 
-	body := IndentCode(f.Body.CodeBlock, 1)
-
+	body := f.Body.ToCode()
+	indentedBody := IndentCode(body, 1)
 	returnSpace := " "
 	if returnStr == "" {
 		returnSpace = ""
 	}
-	return fmt.Sprintf("func %s%s(%s) %s%s{\n%s\n}", receiver, f.Name, paramStr, returnStr, returnSpace, body), allImports
+	return fmt.Sprintf("func %s%s(%s) %s%s{\n%s\n}", receiver, f.Name, paramStr, returnStr, returnSpace, indentedBody), allImports
 }
 
 // Imports are automatically derived from each block,
 // Variables, Constants, Structs, Functions, and InitFunction have their own sources, automatically gets added to allImports
 type GoSourceFile struct {
-	Package      string
-	Variables    []*Variable
-	Constants    []*Constant
-	Structs      []*Struct
-	Functions    []*Function
-	InitFunction *GoCodeBlock
+	Package      string       `yaml:"package,omitempty"`
+	Variables    []*Variable  `yaml:"variables,omitempty"`
+	Constants    []*Constant  `yaml:"constants,omitempty"`
+	Structs      []*Struct    `yaml:"structs,omitempty"`
+	Functions    []*Function  `yaml:"functions,omitempty"`
+	InitFunction CodeElements `yaml:"init,omitempty"`
+	MainFunction CodeElements `yaml:"main,omitempty"`
+	// Additional import paths, not all imports
+	Imports     []string     `yaml:"imports,omitempty"`
+	Dependecies []Dependency `yaml:"dependencies,omitempty"`
 }
 
-func (s *GoSourceFile) SourceCode() (string, error) {
-	return GenerateGoFile(s.Package, s.Structs, s.Functions, s.Variables, s.Constants, s.InitFunction)
+func (s *GoSourceFile) SourceCode() (string, map[Dependency]bool, error) {
+	return GenerateGoFile(s.Package, s.Structs, s.Functions,
+		s.Variables, s.Constants, s.InitFunction, s.MainFunction,
+		s.Imports, s.Dependecies)
 }
 
 // gatherSources collects import sources from parameters and returns.
-func gatherSources(params []*Parameter, fields []*Field, returns []*GoType) map[string]bool {
+func gatherSources(params []*Parameter, elems CodeElements, fields []*Field, returns []*GoType) map[string]bool {
 	uniqueSources := make(map[string]bool)
 	for _, param := range params {
 		if param.Type.Source != "" {
@@ -295,6 +312,10 @@ func gatherSources(params []*Parameter, fields []*Field, returns []*GoType) map[
 		if ret.Source != "" {
 			uniqueSources[ret.Source] = true
 		}
+	}
+
+	for _, src := range elems.Imports() {
+		uniqueSources[src] = true
 	}
 
 	return uniqueSources
@@ -339,7 +360,9 @@ func formatReturnTypes(returns []string) string {
 
 // GenerateGoFile generates a complete Go source file including the specified package name,
 // structs, functions, and standalone functions.
-func GenerateGoFile(packageName string, structs []*Struct, functions []*Function, variables []*Variable, constants []*Constant, initFunction *GoCodeBlock) (string, error) {
+func GenerateGoFile(packageName string, structs []*Struct, functions []*Function,
+	variables []*Variable, constants []*Constant, initFunction CodeElements, mainFunction CodeElements,
+	additionalImports []string, dependencies []Dependency) (string, map[Dependency]bool, error) {
 	var buffer bytes.Buffer
 
 	// Write the package declaration
@@ -351,6 +374,7 @@ func GenerateGoFile(packageName string, structs []*Struct, functions []*Function
 	var functionDefinitions []string
 	var variableDefinitions []string
 	var constantDefinitions []string
+	var allDependencies map[Dependency]bool = make(map[Dependency]bool)
 
 	for _, s := range structs {
 		collectImports(allImports, nil, s.Fields, nil)
@@ -361,6 +385,11 @@ func GenerateGoFile(packageName string, structs []*Struct, functions []*Function
 		for source := range structSources {
 			allImports[source] = true
 		}
+
+		for _, dep := range s.Dependencies {
+			allDependencies[dep] = true
+		}
+
 		structDefinitions = append(structDefinitions, structCode)
 	}
 
@@ -370,6 +399,10 @@ func GenerateGoFile(packageName string, structs []*Struct, functions []*Function
 		for source := range fnSources {
 			allImports[source] = true
 		}
+
+		for _, dep := range f.Dependencies {
+			allDependencies[dep] = true
+		}
 		functionDefinitions = append(functionDefinitions, fnCode)
 	}
 
@@ -378,6 +411,7 @@ func GenerateGoFile(packageName string, structs []*Struct, functions []*Function
 		if v.Type.Source != "" {
 			allImports[v.Type.Source] = true
 		}
+
 	}
 
 	for _, c := range constants {
@@ -388,8 +422,22 @@ func GenerateGoFile(packageName string, structs []*Struct, functions []*Function
 	}
 
 	if initFunction != nil {
-		for _, source := range initFunction.Sources {
+		for _, source := range initFunction.Imports() {
 			allImports[source] = true
+		}
+
+		for _, dep := range initFunction.Dependencies() {
+			allDependencies[dep] = true
+		}
+	}
+
+	if mainFunction != nil {
+		for _, source := range mainFunction.Imports() {
+			allImports[source] = true
+		}
+
+		for _, dep := range mainFunction.Dependencies() {
+			allDependencies[dep] = true
 		}
 	}
 
@@ -419,15 +467,22 @@ func GenerateGoFile(packageName string, structs []*Struct, functions []*Function
 	// Write init function if exists
 	if initFunction != nil {
 		buffer.WriteString("\nfunc init() {\n")
-		buffer.WriteString(IndentCode(initFunction.CodeBlock, 1))
+		buffer.WriteString(IndentCode(initFunction.ToCode(), 1))
+		buffer.WriteString("\n}\n")
+	}
+
+	// Write main function if exists
+	if mainFunction != nil {
+		buffer.WriteString("\nfunc main() {\n")
+		buffer.WriteString(IndentCode(mainFunction.ToCode(), 1))
 		buffer.WriteString("\n}\n")
 	}
 
 	srcCode, err := format.Source(buffer.Bytes())
 	if err != nil {
-		return "", err
+		return "", allDependencies, err
 	}
-	return string(srcCode), nil
+	return string(srcCode), allDependencies, nil
 }
 
 func collectImports(allImports map[string]bool, parameters []*Parameter, fields []*Field, returns []*GoType) {
@@ -450,8 +505,10 @@ func collectImports(allImports map[string]bool, parameters []*Parameter, fields 
 
 func collectFunctionImports(allImports map[string]bool, function *Function) {
 	collectImports(allImports, function.Parameters, nil, function.Returns)
-	for _, src := range function.Body.Sources {
-		allImports[src] = true
+	for _, ce := range function.Body {
+		for _, src := range ce.Imports {
+			allImports[src] = true
+		}
 	}
 	if function.Receiver != nil && function.Receiver.Type.Source != "" {
 		allImports[function.Receiver.Type.Source] = true

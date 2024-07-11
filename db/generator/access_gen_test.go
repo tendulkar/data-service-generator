@@ -43,8 +43,8 @@ func TestGenerateFindConfigs(t *testing.T) {
 		Structs:   structs,
 		Functions: functions,
 	}
-	code, _ := sourceFile.SourceCode()
-	fmt.Println("TestGenerateFindConfigs Code:", code)
+	code, deps, _ := sourceFile.SourceCode()
+	fmt.Println("TestGenerateFindConfigs Code:", code, "Dependencies:", deps)
 	// Add more assertions as needed to validate the output
 }
 
