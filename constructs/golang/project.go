@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 )
@@ -18,12 +17,14 @@ type UnitModule struct {
 	Constants    []*Constant  `yaml:"constants"`
 	InitFunction CodeElements `yaml:"init_fn"`
 	MainFunction CodeElements `yaml:"main"`
+	Dependencies []Dependency `yaml:"dependencies"`
 }
 
 type Module struct {
 	Name         string       `yaml:"name"`
 	Units        []UnitModule `yaml:"units"`
 	ChildModules []*Module    `yaml:"child_modules"`
+	Dependencies []Dependency `yaml:"dependencies"`
 }
 
 type ProjectRequirement struct {
@@ -129,7 +130,7 @@ func GenerateGoMod(project Project, cleanDeps map[string]string, basePath string
 	writeFileFun(filepath.Join(basePath, "go.mod"), sb.String())
 }
 
-func (u *UnitModule) GenerateUnitCode(filepath string, moduleName string) map[Dependency]bool {
+func (u *UnitModule) GenerateUnitCode(filePath string, moduleName string) map[Dependency]bool {
 
 	srcFile := GoSourceFile{
 		Package:      moduleName,
@@ -140,6 +141,7 @@ func (u *UnitModule) GenerateUnitCode(filepath string, moduleName string) map[De
 		Constants:    u.Constants,
 		InitFunction: u.InitFunction,
 		MainFunction: u.MainFunction,
+		Dependencies: u.Dependencies,
 	}
 
 	srcCode, deps, err := srcFile.SourceCode()
@@ -147,24 +149,34 @@ func (u *UnitModule) GenerateUnitCode(filepath string, moduleName string) map[De
 		log.Fatalf("Unable to generate source code: %v", err)
 	}
 
-	goSrcPath := path.Join(filepath, u.Name+".go")
+	goSrcPath := filepath.Join(filePath, u.Name+".go")
 	writeFileFun(goSrcPath, srcCode)
 
 	return deps
 }
 
-func (m *Module) GenerateModuleCode(modulePath string) (string, map[Dependency]bool, error) {
-	filepath := filepath.Join(modulePath, m.Name)
+func (m *Module) GenerateModuleCode(moduleParentPath string) (string, map[Dependency]bool, error) {
+	filePath := moduleParentPath
+
+	if m.Name != "" && m.Name != "main" {
+		filePath = filepath.Join(moduleParentPath, m.Name)
+	}
+
 	dependencies := make(map[Dependency]bool)
+
+	for _, dep := range m.Dependencies {
+		dependencies[dep] = true
+	}
+
 	for _, unit := range m.Units {
-		deps := unit.GenerateUnitCode(filepath, m.Name)
+		deps := unit.GenerateUnitCode(filePath, m.Name)
 		for dep := range deps {
 			dependencies[dep] = true
 		}
 	}
 
 	for _, child := range m.ChildModules {
-		_, childDeps, err := child.GenerateModuleCode(filepath)
+		_, childDeps, err := child.GenerateModuleCode(filePath)
 		if err != nil {
 			return "", nil, err
 		}
@@ -174,7 +186,7 @@ func (m *Module) GenerateModuleCode(modulePath string) (string, map[Dependency]b
 		}
 	}
 
-	return filepath, dependencies, nil
+	return filePath, dependencies, nil
 }
 
 func GenerateProject(project *Project, localPath string) (string, error) {

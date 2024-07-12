@@ -2,6 +2,7 @@ package golang
 
 import (
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -160,4 +161,200 @@ func main() {
 	if got, exists := mockFileData[goSrcPath2]; !exists || got != expectedCode {
 		t.Errorf("GenerateGoMod() = %v, want %v", got, expectedCode)
 	}
+}
+
+func TestModule_GenerateModuleCode(t *testing.T) {
+	mockFileData = make(map[string]string) // Initialize the mock file data store
+	actualWriteFileFun := writeFile
+	writeFileFun = mockWriteFile
+	defer func() {
+		writeFileFun = actualWriteFileFun
+	}()
+
+	// Test case 1: Module with no units or child modules
+	m := &Module{
+		Name: "testModule",
+	}
+
+	modulePath := "path/to/module"
+	fPath, dependencies, err := m.GenerateModuleCode(modulePath)
+	if err != nil {
+		t.Errorf("Error generating module code: %v", err)
+	}
+
+	expectedFilepath := filepath.Join(modulePath, m.Name)
+	if fPath != expectedFilepath {
+		t.Errorf("Expected filepath %s, but got %s", expectedFilepath, fPath)
+	}
+
+	if len(dependencies) != 0 {
+		t.Errorf("Expected no dependencies, but got %d", len(dependencies))
+	}
+
+	// Test case 2: Module with units and child modules
+	m = &Module{
+		Name: "testModule",
+
+		Dependencies: []Dependency{
+			{Source: "github.com/google/uuid", Version: "v1.0.0"},
+			{Source: "github.com/stretchr/testify", Version: "v1.7.0"},
+		},
+		Units: []UnitModule{
+			{
+				Name: "testUnit1",
+				Functions: []*Function{
+					{
+						Name: "TestFunction1",
+						Body: CodeElements{
+							{MemberFunctionCall: &MemberFunctionCall{Receiver: "fmt", Function: "Println", Params: &Literal{Value: "Hello, world!"}}},
+						},
+					},
+				},
+				Imports: []string{"fmt"},
+			},
+			{
+				Name: "testUnit2",
+				Functions: []*Function{
+					{
+						Name: "TestFunction2",
+						Body: CodeElements{
+							{MemberFunctionCall: &MemberFunctionCall{Receiver: "fmt", Function: "Println", Params: &Literal{Value: "Hello, world 2.0!"}}},
+						}},
+				},
+				Imports: []string{"fmt"},
+			},
+		},
+		ChildModules: []*Module{
+			{
+				Name: "testChildModule1",
+				Units: []UnitModule{
+					{
+						Name: "testChildUnit1",
+						Functions: []*Function{
+							{
+								Name: "TestChildFunction1",
+								Body: CodeElements{
+									{MemberFunctionCall: &MemberFunctionCall{Receiver: "fmt", Function: "Println", Params: &Literal{Value: "Hello, world child!"}}},
+								},
+							},
+						},
+						Imports: []string{"fmt"},
+					},
+				},
+				Dependencies: []Dependency{
+					{Source: "yourcompany.com/yourproject", Version: "v2.1.0"},
+					{Source: "yourcompany.com/yourproject2", Version: "v2.2.0"},
+				},
+			},
+			{
+				Name: "testChildModule2",
+				Units: []UnitModule{
+					{
+						Name: "testChildUnit2",
+						Functions: []*Function{
+							{
+								Name: "TestChildFunction2",
+								Body: CodeElements{
+									{MemberFunctionCall: &MemberFunctionCall{Receiver: "fmt", Function: "Println", Params: &Literal{Value: "Hello, world child 2.0!"}}},
+								}},
+						},
+						Imports: []string{"fmt"},
+					},
+				},
+			},
+		},
+	}
+
+	modulePath = "path/to/module"
+	fPath, dependencies, err = m.GenerateModuleCode(modulePath)
+	if err != nil {
+		t.Errorf("Error generating module code: %v", err)
+	}
+
+	expectedFilepath = filepath.Join(modulePath, m.Name)
+	if fPath != expectedFilepath {
+		t.Errorf("Expected filepath %s, but got %s", expectedFilepath, fPath)
+	}
+
+	expectedDependencies := map[Dependency]bool{
+		{
+			Source:  "github.com/google/uuid",
+			Version: "v1.0.0",
+		}: true,
+		{
+			Source:  "github.com/stretchr/testify",
+			Version: "v1.7.0",
+		}: true,
+		{
+			Source:  "yourcompany.com/yourproject",
+			Version: "v2.1.0",
+		}: true,
+		{
+			Source:  "yourcompany.com/yourproject2",
+			Version: "v2.2.0",
+		}: true,
+	}
+	if !reflect.DeepEqual(dependencies, expectedDependencies) {
+		t.Errorf("Expected dependencies %v, but got %v", expectedDependencies, dependencies)
+	}
+
+	testChildModule1Code := `package testChildModule1
+
+import (
+	"fmt"
+)
+
+func TestChildFunction1() {
+	fmt.Println("Hello, world child!")
+}
+`
+	testChildModule2Code := `package testChildModule2
+
+import (
+	"fmt"
+)
+
+func TestChildFunction2() {
+	fmt.Println("Hello, world child 2.0!")
+}
+`
+
+	testModuleCode := `package testModule
+
+import (
+	"fmt"
+)
+
+func TestFunction1() {
+	fmt.Println("Hello, world!")
+}
+`
+
+	testModule2Code := `package testModule
+
+import (
+	"fmt"
+)
+
+func TestFunction2() {
+	fmt.Println("Hello, world 2.0!")
+}
+`
+
+	// Verify the generated code for the module
+	expectedCodeMap := map[string]string{
+		"path/to/module/testModule/testChildModule1/testChildUnit1.go": testChildModule1Code,
+		"path/to/module/testModule/testChildModule2/testChildUnit2.go": testChildModule2Code,
+		"path/to/module/testModule/testUnit1.go":                       testModuleCode,
+		"path/to/module/testModule/testUnit2.go":                       testModule2Code,
+	}
+
+	// t.Log(mockFileData)
+
+	for p, expectedCode := range expectedCodeMap {
+		if mockFileData[p] != expectedCode {
+			t.Errorf("At path %s, Expected code:\n%s\nbut got:\n%s", p, expectedCode, mockFileData[p])
+		}
+	}
+
 }

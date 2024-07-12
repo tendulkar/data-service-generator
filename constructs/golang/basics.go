@@ -285,14 +285,14 @@ type GoSourceFile struct {
 	InitFunction CodeElements `yaml:"init,omitempty"`
 	MainFunction CodeElements `yaml:"main,omitempty"`
 	// Additional import paths, not all imports
-	Imports     []string     `yaml:"imports,omitempty"`
-	Dependecies []Dependency `yaml:"dependencies,omitempty"`
+	Imports      []string     `yaml:"imports,omitempty"`
+	Dependencies []Dependency `yaml:"dependencies,omitempty"`
 }
 
 func (s *GoSourceFile) SourceCode() (string, map[Dependency]bool, error) {
 	return GenerateGoFile(s.Package, s.Structs, s.Functions,
 		s.Variables, s.Constants, s.InitFunction, s.MainFunction,
-		s.Imports, s.Dependecies)
+		s.Imports, s.Dependencies)
 }
 
 // gatherSources collects import sources from parameters and returns.
