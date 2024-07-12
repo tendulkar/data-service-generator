@@ -88,7 +88,7 @@ func TestUnitModule_GenerateCode(t *testing.T) {
 			{
 				Name: "TestFunction",
 				Body: CodeElements{
-					{MemberFunctionCall: &MemberFunctionCall{Receiver: "fmt", Function: "Println", Params: &Literal{Value: "Hello, world!"}}},
+					{FunctionCall: &FunctionCall{Receiver: "fmt", Function: "Println", Params: &Literal{Value: "Hello, world!"}}},
 				},
 			},
 		},
@@ -99,10 +99,10 @@ func TestUnitModule_GenerateCode(t *testing.T) {
 			{Name: "TestConstant", Value: "123"},
 		},
 		InitFunction: CodeElements{
-			{MemberFunctionCall: &MemberFunctionCall{Receiver: "fmt", Function: "Println", Params: &Literal{Value: "Initializing module"}}},
+			{FunctionCall: &FunctionCall{Receiver: "fmt", Function: "Println", Params: &Literal{Value: "Initializing module"}}},
 		},
 		MainFunction: CodeElements{
-			{MemberFunctionCall: &MemberFunctionCall{Receiver: "fmt", Function: "Println", Params: &Literal{Value: "Running main function"}}},
+			{FunctionCall: &FunctionCall{Receiver: "fmt", Function: "Println", Params: &Literal{Value: "Running main function"}}},
 		},
 	}
 
@@ -206,7 +206,7 @@ func TestModule_GenerateModuleCode(t *testing.T) {
 					{
 						Name: "TestFunction1",
 						Body: CodeElements{
-							{MemberFunctionCall: &MemberFunctionCall{Receiver: "fmt", Function: "Println", Params: &Literal{Value: "Hello, world!"}}},
+							{FunctionCall: &FunctionCall{Receiver: "fmt", Function: "Println", Params: &Literal{Value: "Hello, world!"}}},
 						},
 					},
 				},
@@ -218,7 +218,7 @@ func TestModule_GenerateModuleCode(t *testing.T) {
 					{
 						Name: "TestFunction2",
 						Body: CodeElements{
-							{MemberFunctionCall: &MemberFunctionCall{Receiver: "fmt", Function: "Println", Params: &Literal{Value: "Hello, world 2.0!"}}},
+							{FunctionCall: &FunctionCall{Receiver: "fmt", Function: "Println", Params: &Literal{Value: "Hello, world 2.0!"}}},
 						}},
 				},
 				Imports: []string{"fmt"},
@@ -234,7 +234,7 @@ func TestModule_GenerateModuleCode(t *testing.T) {
 							{
 								Name: "TestChildFunction1",
 								Body: CodeElements{
-									{MemberFunctionCall: &MemberFunctionCall{Receiver: "fmt", Function: "Println", Params: &Literal{Value: "Hello, world child!"}}},
+									{FunctionCall: &FunctionCall{Receiver: "fmt", Function: "Println", Params: &Literal{Value: "Hello, world child!"}}},
 								},
 							},
 						},
@@ -255,7 +255,7 @@ func TestModule_GenerateModuleCode(t *testing.T) {
 							{
 								Name: "TestChildFunction2",
 								Body: CodeElements{
-									{MemberFunctionCall: &MemberFunctionCall{Receiver: "fmt", Function: "Println", Params: &Literal{Value: "Hello, world child 2.0!"}}},
+									{FunctionCall: &FunctionCall{Receiver: "fmt", Function: "Println", Params: &Literal{Value: "Hello, world child 2.0!"}}},
 								}},
 						},
 						Imports: []string{"fmt"},
@@ -394,7 +394,7 @@ func TestGenerateProject(t *testing.T) {
 							{
 								Name: "TestFunction1",
 								Body: CodeElements{
-									{MemberFunctionCall: &MemberFunctionCall{Receiver: "fmt", Function: "Println", Params: &Literal{Value: "Hello, world!"}}},
+									{FunctionCall: &FunctionCall{Receiver: "fmt", Function: "Println", Params: &Literal{Value: "Hello, world!"}}},
 								},
 							},
 						},
@@ -411,7 +411,7 @@ func TestGenerateProject(t *testing.T) {
 							{
 								Name: "TestFunction2",
 								Body: CodeElements{
-									{MemberFunctionCall: &MemberFunctionCall{Receiver: "fmt", Function: "Println", Params: &Literal{Value: "Hello, world 2.0!"}}},
+									{FunctionCall: &FunctionCall{Receiver: "fmt", Function: "Println", Params: &Literal{Value: "Hello, world 2.0!"}}},
 								},
 							},
 						},

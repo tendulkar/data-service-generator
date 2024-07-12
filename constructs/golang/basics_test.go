@@ -66,7 +66,7 @@ func TestFunctionCodeGeneration(t *testing.T) {
 		Returns: []*GoType{{Name: "error", Source: ""}},
 		Body: CodeElements{{
 			Imports: []string{"github.com/example/data"},
-			MemberFunctionCall: &MemberFunctionCall{
+			FunctionCall: &FunctionCall{
 				Receiver: "this.Data",
 				Function: "Merge",
 				Params:   "data",
@@ -116,7 +116,7 @@ func TestStructCodeGeneration(t *testing.T) {
 				Returns: []*GoType{{Name: "error", Source: ""}},
 				Body: []*CodeElement{
 					{
-						MemberFunctionCall: &MemberFunctionCall{
+						FunctionCall: &FunctionCall{
 							Receiver: "this.Logger",
 							Function: "Info",
 							Params: []*Literal{
@@ -200,7 +200,7 @@ func TestGenerateGoFile(t *testing.T) {
 	}
 	initFunction := CodeElements{
 		{
-			MemberFunctionCall: &MemberFunctionCall{
+			FunctionCall: &FunctionCall{
 				Receiver: "defaultLogger",
 				Function: "SetLevel",
 				Params:   "DefaultLevel",

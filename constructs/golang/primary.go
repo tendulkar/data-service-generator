@@ -41,6 +41,7 @@ type CodeElement struct {
 	PostDecrement      interface{}                 `yaml:"post_dec,omitempty"`
 	PreIncrement       interface{}                 `yaml:"pre_inc,omitempty"`
 	PreDecrement       interface{}                 `yaml:"pre_dec,omitempty"`
+	Variable           *VariableCreate             `yaml:"var,omitempty"`
 	Assign             *Assignment                 `yaml:"assign,omitempty"`
 	NewAssign          *NewAssignment              `yaml:"new_assign,omitempty"`
 	If                 *IfElement                  `yaml:"if,omitempty"`
@@ -56,7 +57,6 @@ type CodeElement struct {
 	GoRoutine          *GoRoutine                  `yaml:"async,omitempty"`
 	DeferRoutine       *DeferRoutine               `yaml:"finally,omitempty"`
 	FunctionCall       *FunctionCall               `yaml:"call,omitempty"`
-	MemberFunctionCall *MemberFunctionCall         `yaml:"obj_call,omitempty"`
 	Steps              []*CodeElement              `yaml:"steps,omitempty"`
 	Imports            []string                    `yaml:"imports,omitempty"`
 	Dependencies       []Dependency                `yaml:"dependencies,omitempty"`
@@ -201,6 +201,11 @@ type PreDecrement struct {
 	UnaryOp `yaml:",inline"`
 }
 
+type VariableCreate struct {
+	Name string `yaml:"name"`
+	Type string `yaml:"type"`
+}
+
 // Supporting structs
 type Assignment struct {
 	Left  interface{} `yaml:"left"`
@@ -291,29 +296,18 @@ type StructCreation struct {
 }
 
 type GoRoutine struct {
-	FunctionCall       *CodeElement `yaml:"call"`
-	MemberFunctionCall *CodeElement `yaml:"obj_call"`
+	FunctionCall *CodeElement `yaml:"call"`
 }
 
 type DeferRoutine struct {
-	FunctionCall       *CodeElement `yaml:"call"`
-	MemberFunctionCall *CodeElement `yaml:"obj_call"`
+	FunctionCall *CodeElement `yaml:"call"`
 }
 
 type FunctionCall struct {
 	Output    interface{} `yaml:"out,omitempty"`
 	NewOutput interface{} `yaml:"nout,omitempty"`
-	Function  string      `yaml:"func"`
-	Params    interface{} `yaml:"args"`
-	Defer     bool        `yaml:"defer,omitempty"`
-	Async     bool        `yaml:"async,omitempty"`
-}
-
-type MemberFunctionCall struct {
-	Output    interface{} `yaml:"out,omitempty"`
-	NewOutput interface{} `yaml:"nout,omitempty"`
 	Receiver  string      `yaml:"obj"`
-	Function  string      `yaml:"function"`
+	Function  string      `yaml:"func"`
 	Params    interface{} `yaml:"args"`
 	Defer     bool        `yaml:"defer,omitempty"`
 	Async     bool        `yaml:"async,omitempty"`
@@ -614,6 +608,10 @@ func bodyWithBreakAndContinue(body []*CodeElement, b interface{}, c interface{})
 	return fmt.Sprintf("%s\n%s%s", bodyCode, Indent, continueCode)
 }
 
+func (vc *VariableCreate) ToCode() string {
+	return fmt.Sprintf("var %s %s", vc.Name, vc.Type)
+}
+
 // Implementation of ToCode for each struct
 func (a *Assignment) ToCode() string {
 	leftSide := resolveStringOrArray(a.Left)
@@ -751,16 +749,10 @@ func (sc *StructCreation) ToCode() string {
 }
 
 func (gr *GoRoutine) ToCode() string {
-	if gr.MemberFunctionCall != nil {
-		return fmt.Sprintf("go %s()", gr.MemberFunctionCall.ToCode())
-	}
 	return fmt.Sprintf("go %s()", gr.FunctionCall.ToCode())
 }
 
 func (dr *DeferRoutine) ToCode() string {
-	if dr.MemberFunctionCall != nil {
-		return fmt.Sprintf("defer %s()", dr.MemberFunctionCall.ToCode())
-	}
 	return fmt.Sprintf("defer %s()", dr.FunctionCall.ToCode())
 }
 
@@ -792,24 +784,18 @@ func resolveOutputs(output, newOutput interface{}) string {
 func (fc *FunctionCall) ToCode() string {
 	leftSide := resolveOutputs(fc.Output, fc.NewOutput)
 	paramsCode := resolveStringOrCodeElement(fc.Params, ", ")
+	fnName := fc.Function
 	base.LOG.Info("FunctionCall ToCode", "fc", *fc, "leftSide", leftSide, "params", paramsCode)
+	if fc.Receiver != "" {
+		fnName = fmt.Sprintf("%s.%s", fc.Receiver, fc.Function)
+	}
 	if fc.Defer {
-		return fmt.Sprintf("defer %s(%s)", fc.Function, paramsCode)
+		return fmt.Sprintf("defer %s(%s)", fnName, paramsCode)
 	} else if fc.Async {
-		return fmt.Sprintf("go %s(%s)", fc.Function, paramsCode)
+		return fmt.Sprintf("go %s(%s)", fnName, paramsCode)
 	}
-	return fmt.Sprintf("%s%s(%s)", leftSide, fc.Function, paramsCode)
-}
 
-func (mfc *MemberFunctionCall) ToCode() string {
-	leftSide := resolveOutputs(mfc.Output, mfc.NewOutput)
-	paramsCode := resolveStringOrCodeElement(mfc.Params, ", ")
-	if mfc.Defer {
-		return fmt.Sprintf("defer %s.%s(%s)", mfc.Receiver, mfc.Function, paramsCode)
-	} else if mfc.Async {
-		return fmt.Sprintf("go %s.%s(%s)", mfc.Receiver, mfc.Function, paramsCode)
-	}
-	return fmt.Sprintf("%s%s.%s(%s)", leftSide, mfc.Receiver, mfc.Function, paramsCode)
+	return fmt.Sprintf("%s%s(%s)", leftSide, fnName, paramsCode)
 }
 
 func convertMapToStruct[T CodeBlock](m map[string]interface{}) T {
@@ -1070,6 +1056,7 @@ if {{template "code" .Condition}} {
 {{template "Compare" .}}
 {{template "Bitwise" .}}
 {{template "Unary" .}}
+{{if .Variable}}{{.Variable.ToCode}}{{end}}
 {{if .Assign}}{{assign .Assign}}{{end}}
 {{if .NewAssign}}{{newassign .NewAssign}}{{end}}
 {{if .If}}{{.If.ToCode}}{{end}}
@@ -1084,7 +1071,6 @@ if {{template "code" .Condition}} {
 {{if .GoRoutine}}{{.GoRoutine.ToCode}}{{end}}
 {{if .DeferRoutine}}{{.DeferRoutine.ToCode}}{{end}}
 {{if .FunctionCall}}{{.FunctionCall.ToCode}}{{end}}
-{{if .MemberFunctionCall}}{{.MemberFunctionCall.ToCode}}{{end}}
 {{if .Return}}{{return .Return}}{{end}}
 {{if .Steps}}{{range $index, $step := .Steps}}
 {{to_code $step}}{{end}}{{end}}
