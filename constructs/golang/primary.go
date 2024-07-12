@@ -61,6 +61,10 @@ type CodeElement struct {
 	Imports            []string                    `yaml:"imports,omitempty"`
 	Dependencies       []Dependency                `yaml:"dependencies,omitempty"`
 	Literal            interface{}                 `yaml:"lit,omitempty"`
+
+	// Other constructs to simplify code generation
+	MapLookup *MapLookup     `yaml:"lookup,omitempty"`
+	IfError   []*CodeElement `yaml:"if_error,omitempty"`
 }
 
 type CodeElements []*CodeElement
@@ -316,6 +320,14 @@ type FunctionCall struct {
 type Literal struct {
 	Value interface{} `yaml:"val"`
 	Type  string      `yaml:"type"`
+}
+
+type MapLookup struct {
+	Output    interface{} `yaml:"out,omitempty"`
+	NewOutput interface{} `yaml:"nout,omitempty"`
+	Receiver  string      `yaml:"obj"`
+	Name      string      `yaml:"name"`
+	Key       interface{} `yaml:"key"`
 }
 
 func resolveTypeLiteral(v interface{}, t string) string {
@@ -798,6 +810,16 @@ func (fc *FunctionCall) ToCode() string {
 	return fmt.Sprintf("%s%s(%s)", leftSide, fnName, paramsCode)
 }
 
+func (ml *MapLookup) ToCode() string {
+	name := ml.Name
+	if ml.Receiver != "" {
+		name = fmt.Sprintf("%s.%s", ml.Receiver, ml.Name)
+	}
+
+	leftSide := resolveOutputs(ml.Output, ml.NewOutput)
+	return fmt.Sprintf("%s%s[%s]", leftSide, name, ml.Key)
+}
+
 func convertMapToStruct[T CodeBlock](m map[string]interface{}) T {
 	var t T
 	ptr := reflect.New(reflect.TypeOf(t).Elem()).Interface().(T)
@@ -969,6 +991,12 @@ func ReturnToCode(a interface{}) string {
 	return fmt.Sprintf("return %v", resolveStringOrCodeElement(a, ", "))
 }
 
+func IfErrorToCode(ce CodeElements) string {
+	codePart := ce.ToCode()
+	indentedCode := IndentCode(codePart, 1)
+	return fmt.Sprintf("if err != nil {\n%s\n}", indentedCode)
+}
+
 // Define templates for each construct
 var tpl *template.Template
 
@@ -1002,6 +1030,7 @@ func init() {
 		"newassign": NewAssignToCode,
 		"to_code":   CodeElementToCode,
 		"return":    ReturnToCode,
+		"ife":       IfErrorToCode,
 	}).Parse(`
 {{define "Arithmetic"}}
 {{if .Add}}{{add .Add}}{{end}}
@@ -1072,6 +1101,8 @@ if {{template "code" .Condition}} {
 {{if .DeferRoutine}}{{.DeferRoutine.ToCode}}{{end}}
 {{if .FunctionCall}}{{.FunctionCall.ToCode}}{{end}}
 {{if .Return}}{{return .Return}}{{end}}
+{{if .MapLookup}}{{.MapLookup.ToCode}}{{end}}
+{{if .IfError}}{{ife .IfError}}{{end}}
 {{if .Steps}}{{range $index, $step := .Steps}}
 {{to_code $step}}{{end}}{{end}}
 {{end}}

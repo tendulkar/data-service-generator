@@ -506,3 +506,59 @@ out: c`
 	}
 
 }
+
+// TestSQLYamlToCode description of the Go function.
+// Create sqlYaml which contains yaml for SQL read through Go
+// and compare the result with the expected
+// t *testing.T.
+func TestSQLYamlToCode(t *testing.T) {
+	expectedFindGoCode := `stmt := db.preparedCache["{{ .Name }}"]
+values, err := {{ .Name }}ParseParams(reqeust)
+if err != nil {
+	return nil, err
+}
+rows, err := stmt.Query(values...)
+if err != nil {
+	return nil, err
+}
+defer rows.Close()
+
+var results []{{.ModelName}}
+for rows.Next() {
+	var item {{.ModelName}}
+	err := rows.Scan({{ .ScanAttributes }})
+	if err != nil {
+		return nil, err
+	}
+	results = append(results, item)
+}
+return results, nil`
+
+	findSQLYaml := `
+steps:
+	- lookup:
+	  nout: [stmt, ok]
+	  obj: db
+	  name: preparedCache
+	  right: "{{ .Name }}"
+	- call:
+		nout: [values, err]
+		func: {{ .Name }}ParseParams
+		args: [reqeust]
+	if:
+		cont: {ne: {left: err, right: nil}}
+		then:
+			return: [nil, err]
+		
+
+
+	  right: {{ .Name }}ParseParams(reqeust)
+  - call:
+	  out: err
+	  func: Query
+	  args: ["values..."]
+  - new_assign:
+	  left: results
+	  right: "
+  - if:`
+}
