@@ -358,3 +358,110 @@ func TestFunction2() {
 	}
 
 }
+
+func TestGenerateProject(t *testing.T) {
+	mockFileData = make(map[string]string) // Initialize the mock file data store
+	actualWriteFileFun := writeFile
+	writeFileFun = mockWriteFile
+	defer func() {
+		writeFileFun = actualWriteFileFun
+	}()
+
+	// Test case 1: Generate project with no modules
+	project := &Project{
+		Name:      "testProject",
+		GoVersion: "1.22.0",
+		Modules:   nil,
+	}
+
+	projectPath := "path/to/project"
+	err := project.GenerateProject(projectPath)
+	if err != nil {
+		t.Errorf("Error generating project: %v", err)
+	}
+
+	// Test case 2: Generate project with modules
+	project = &Project{
+		Name:      "testProject",
+		GoVersion: "1.22.0",
+		Modules: []*Module{
+			{
+				Name: "testModule1",
+				Units: []UnitModule{
+					{
+						Name: "testUnit1",
+						Functions: []*Function{
+							{
+								Name: "TestFunction1",
+								Body: CodeElements{
+									{MemberFunctionCall: &MemberFunctionCall{Receiver: "fmt", Function: "Println", Params: &Literal{Value: "Hello, world!"}}},
+								},
+							},
+						},
+						Imports: []string{"fmt"},
+					},
+				},
+			},
+			{
+				Name: "testModule2",
+				Units: []UnitModule{
+					{
+						Name: "testUnit2",
+						Functions: []*Function{
+							{
+								Name: "TestFunction2",
+								Body: CodeElements{
+									{MemberFunctionCall: &MemberFunctionCall{Receiver: "fmt", Function: "Println", Params: &Literal{Value: "Hello, world 2.0!"}}},
+								},
+							},
+						},
+						Imports: []string{"fmt"},
+					},
+				},
+			},
+		},
+	}
+
+	goModCode := `module testProject
+
+go 1.22.0
+`
+	testUnit1Code := `package testModule1
+
+import (
+	"fmt"
+)
+
+func TestFunction1() {
+	fmt.Println("Hello, world!")
+}
+`
+	testUnit2Code := `package testModule2
+
+import (
+	"fmt"
+)
+
+func TestFunction2() {
+	fmt.Println("Hello, world 2.0!")
+}
+`
+	expectedCodeMap := map[string]string{
+		"path/to/project/go.mod":                   goModCode,
+		"path/to/project/testModule1/testUnit1.go": testUnit1Code,
+		"path/to/project/testModule2/testUnit2.go": testUnit2Code,
+	}
+	projectPath = "path/to/project"
+	err = project.GenerateProject(projectPath)
+	if err != nil {
+		t.Errorf("Error generating project: %v", err)
+	}
+
+	// t.Log(mockFileData)
+
+	for p, expectedCode := range expectedCodeMap {
+		if mockFileData[p] != expectedCode {
+			t.Errorf("At path %s, Expected code:\n%s\nbut got:\n%s", p, expectedCode, mockFileData[p])
+		}
+	}
+}

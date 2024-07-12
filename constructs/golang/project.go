@@ -57,13 +57,25 @@ type ProjectReposity struct {
 type Project struct {
 	Name            string                `yaml:"name"`
 	ProjectLocation string                `yaml:"location"`
-	ModuleMap       map[string]*Module    `yaml:"modules"`
+	Modules         []*Module             `yaml:"modules"`
 	GoVersion       string                `yaml:"go_version"`
 	Requirements    []*ProjectRequirement `yaml:"requirements"`
 	Replacements    []*ProjectReplacement `yaml:"replacements"`
 	Exclusions      []*ProjectExclusion   `yaml:"exclusions"`
 	Retracts        []*ProjectRetract     `yaml:"retracts"`
 	Repositories    []*ProjectReposity    `yaml:"repositories"`
+}
+
+func (p *Project) validate() error {
+	if p.Name == "" {
+		return fmt.Errorf("Name(yaml key: name) is required")
+	}
+
+	if p.GoVersion == "" {
+		return fmt.Errorf("GoVersion(yaml key: go_version) is required")
+	}
+
+	return nil
 }
 
 var writeFileFun func(string, string) = writeFile
@@ -189,14 +201,18 @@ func (m *Module) GenerateModuleCode(moduleParentPath string) (string, map[Depend
 	return filePath, dependencies, nil
 }
 
-func GenerateProject(project *Project, localPath string) (string, error) {
+func (project *Project) GenerateProject(localPath string) error {
+	if err := project.validate(); err != nil {
+		return err
+	}
+
 	dependencies := make(map[Dependency]bool)
 
-	for path, module := range project.ModuleMap {
+	for _, module := range project.Modules {
 		// Generate the go.mod file
-		_, deps, err := module.GenerateModuleCode(filepath.Join(localPath, path))
+		_, deps, err := module.GenerateModuleCode(localPath)
 		if err != nil {
-			return "", err
+			return err
 		}
 
 		for dep := range deps {
@@ -208,7 +224,7 @@ func GenerateProject(project *Project, localPath string) (string, error) {
 
 	for dep := range dependencies {
 		if _, ok := cleanDeps[dep.Source]; ok {
-			return "", fmt.Errorf("duplicate dependency: %v with version %s", dep, cleanDeps[dep.Source])
+			return fmt.Errorf("duplicate dependency: %v with version %s", dep, cleanDeps[dep.Source])
 		}
 		cleanDeps[dep.Source] = dep.Version
 	}
@@ -216,5 +232,5 @@ func GenerateProject(project *Project, localPath string) (string, error) {
 	// Generate the go.mod file
 	GenerateGoMod(*project, cleanDeps, localPath)
 
-	return "", nil
+	return nil
 }
