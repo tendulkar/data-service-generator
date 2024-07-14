@@ -308,13 +308,15 @@ type DeferRoutine struct {
 }
 
 type FunctionCall struct {
-	Output    interface{} `yaml:"out,omitempty"`
-	NewOutput interface{} `yaml:"nout,omitempty"`
-	Receiver  string      `yaml:"obj"`
-	Function  string      `yaml:"func"`
-	Params    interface{} `yaml:"args"`
-	Defer     bool        `yaml:"defer,omitempty"`
-	Async     bool        `yaml:"async,omitempty"`
+	Output           interface{} `yaml:"out,omitempty"`
+	NewOutput        interface{} `yaml:"nout,omitempty"`
+	Receiver         string      `yaml:"obj,omitempty"`
+	Function         string      `yaml:"func"`
+	Args             interface{} `yaml:"args,omitempty"`
+	Defer            bool        `yaml:"defer,omitempty"`
+	Async            bool        `yaml:"async,omitempty"`
+	ErrorHandler     `yaml:",inline"`
+	CleanningHandler CleanningHandler `yaml:"clean,omitempty"`
 }
 
 type Literal struct {
@@ -323,11 +325,26 @@ type Literal struct {
 }
 
 type MapLookup struct {
-	Output    interface{} `yaml:"out,omitempty"`
-	NewOutput interface{} `yaml:"nout,omitempty"`
-	Receiver  string      `yaml:"obj"`
-	Name      string      `yaml:"name"`
-	Key       interface{} `yaml:"key"`
+	Output           interface{}      `yaml:"out,omitempty"`
+	NewOutput        interface{}      `yaml:"nout,omitempty"`
+	Receiver         string           `yaml:"obj,omitempty"`
+	Name             string           `yaml:"name,omitempty"`
+	Key              interface{}      `yaml:"key,omitempty"`
+	CleanningHandler CleanningHandler `yaml:"clean,omitempty"`
+}
+
+type ErrorHandler struct {
+	Error        string       `yaml:"err,omitempty"`
+	ErrorReturns interface{}  `yaml:"err_returns,omitempty"`
+	ErrorSteps   CodeElements `yaml:"err_steps,omitempty"`
+}
+
+type CleanningHandler struct {
+	Receiver string       `yaml:"obj,omitempty"`
+	Function string       `yaml:"func,omitempty"`
+	Args     interface{}  `yaml:"args,omitempty"`
+	Steps    CodeElements `yaml:"steps,omitempty"`
+	Params   interface{}  `yaml:"params,omitempty"`
 }
 
 func resolveTypeLiteral(v interface{}, t string) string {
@@ -377,17 +394,12 @@ func resolveLiteral(v interface{}) string {
 	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
 		return fmt.Sprintf("%v", rv)
 	case Literal:
-		if rv.Type == "" {
-			return resolveLiteral(rv.Value)
-		} else {
-			return resolveTypeLiteral(rv.Value, rv.Type)
-		}
+		return rv.ToCode()
 	case *Literal:
-		if rv.Type == "" {
-			return resolveLiteral(rv.Value)
-		} else {
-			return resolveTypeLiteral(rv.Value, rv.Type)
-		}
+		return rv.ToCode()
+	case map[string]interface{}:
+		st := convertMapToStruct[*Literal](rv)
+		return st.ToCode()
 	case []interface{}:
 		return resolveArrayInterface(rv, ", ")
 
@@ -395,17 +407,6 @@ func resolveLiteral(v interface{}) string {
 		return fmt.Sprintf("%v", rv)
 	}
 }
-
-// func resolveCodeElementOrString(v interface{}) string {
-// 	switch rv := v.(type) {
-// 	case *Literal:
-// 		return resolveLiteral(rv.Value)
-// 	case *CodeElement:
-// 		return rv.ToCode()
-// 	default:
-// 		return fmt.Sprintf("%v", rv)
-// 	}
-// }
 
 func binaryOpToCode(op string, b *BinaryOp) string {
 	lvalue := resolveStringOrCodeElement(b.Left, ", ")
@@ -795,19 +796,40 @@ func resolveOutputs(output, newOutput interface{}) string {
 
 func (fc *FunctionCall) ToCode() string {
 	leftSide := resolveOutputs(fc.Output, fc.NewOutput)
-	paramsCode := resolveStringOrCodeElement(fc.Params, ", ")
+	argsCode := resolveStringOrCodeElement(fc.Args, ", ")
 	fnName := fc.Function
-	base.LOG.Info("FunctionCall ToCode", "fc", *fc, "leftSide", leftSide, "params", paramsCode)
+	base.LOG.Info("FunctionCall ToCode", "fc", *fc, "leftSide", leftSide, "params", argsCode)
 	if fc.Receiver != "" {
 		fnName = fmt.Sprintf("%s.%s", fc.Receiver, fc.Function)
 	}
+
+	// if defered or async, just call the function, no assignment nor error handling
 	if fc.Defer {
-		return fmt.Sprintf("defer %s(%s)", fnName, paramsCode)
+		return fmt.Sprintf("defer %s(%s)", fnName, argsCode)
 	} else if fc.Async {
-		return fmt.Sprintf("go %s(%s)", fnName, paramsCode)
+		return fmt.Sprintf("go %s(%s)", fnName, argsCode)
 	}
 
-	return fmt.Sprintf("%s%s(%s)", leftSide, fnName, paramsCode)
+	fnPart := fmt.Sprintf("%s%s(%s)", leftSide, fnName, argsCode)
+	fullCode := fnPart
+	errPart := fc.ErrorHandler.ToCode()
+	if errPart != "" {
+		fullCode = fmt.Sprintf("%s\n%s", fnPart, errPart)
+	}
+	cleanPart := fc.CleanningHandler.ToCode()
+	if cleanPart != "" {
+		fullCode = fmt.Sprintf("%s\n%s", fullCode, cleanPart)
+	}
+
+	return fullCode
+}
+
+func (l *Literal) ToCode() string {
+	if l.Type == "" {
+		return resolveLiteral(l.Value)
+	} else {
+		return resolveTypeLiteral(l.Value, l.Type)
+	}
 }
 
 func (ml *MapLookup) ToCode() string {
@@ -816,8 +838,45 @@ func (ml *MapLookup) ToCode() string {
 		name = fmt.Sprintf("%s.%s", ml.Receiver, ml.Name)
 	}
 
+	key := resolveLiteral(ml.Key)
 	leftSide := resolveOutputs(ml.Output, ml.NewOutput)
-	return fmt.Sprintf("%s%s[%s]", leftSide, name, ml.Key)
+	return fmt.Sprintf("%s%s[%s]", leftSide, name, key)
+}
+
+func (eh *ErrorHandler) ToCode() string {
+	errPart := ""
+	if eh.ErrorReturns != nil {
+		errPart = IndentCode(ReturnToCode(eh.ErrorReturns), 1)
+	} else if eh.ErrorSteps != nil {
+		errPart = bodyCodeGen(eh.ErrorSteps)
+	} else {
+		return ""
+	}
+
+	errName := eh.Error
+	if errName == "" {
+		errName = "err"
+	}
+
+	errCode := fmt.Sprintf("if %s != nil {\n%s\n}", errName, errPart)
+	return errCode
+}
+
+func (ch *CleanningHandler) ToCode() string {
+
+	argsCode := resolveStringOrCodeElement(ch.Args, ", ")
+	if ch.Steps == nil && ch.Function == "" {
+		return ""
+	} else if ch.Steps == nil {
+		fnName := ch.Function
+		if ch.Receiver != "" {
+			fnName = fmt.Sprintf("%s.%s", ch.Receiver, ch.Function)
+		}
+		return fmt.Sprintf("defer %s(%s)", fnName, argsCode)
+	} else {
+		bodyCode := bodyCodeGen(ch.Steps)
+		return fmt.Sprintf("defer func(%s) {\n%s\n} ()", bodyCode, argsCode)
+	}
 }
 
 func convertMapToStruct[T CodeBlock](m map[string]interface{}) T {

@@ -522,7 +522,6 @@ if err != nil {
 	return nil, err
 }
 defer rows.Close()
-
 var results []{{.ModelName}}
 for rows.Next() {
 	var item {{.ModelName}}
@@ -536,29 +535,97 @@ return results, nil`
 
 	findSQLYaml := `
 steps:
-	- lookup:
-	  nout: [stmt, ok]
-	  obj: db
-	  name: preparedCache
-	  right: "{{ .Name }}"
-	- call:
-		nout: [values, err]
-		func: {{ .Name }}ParseParams
-		args: [reqeust]
-	if:
-		cont: {ne: {left: err, right: nil}}
-		then:
-			return: [nil, err]
-		
+    - lookup:
+        nout: stmt
+        obj: db
+        name: preparedCache
+        key: {val: "{{ .Name }}"}
+    - call:
+        nout: [values, err]
+        func: "{{ .Name }}ParseParams"
+        args: [reqeust]
+        err_returns: [nil, err]
+    - call:
+        nout: [rows, err]
+        obj: stmt
+        func: Query
+        args: ["values..."]
+        err_returns: [nil, err]
+        clean: 
+            obj: rows
+            func: Close
+    - var:
+        name: results
+        type: "[]{{.ModelName}}"
+    - repeat_cond:
+        cond: {call: {func: Next, obj: rows}}
+        body:
+        - var:
+            name: item
+            type: "{{.ModelName}}"
+        - call:
+            nout: err
+            obj: rows
+            func: Scan
+            args: "{{ .ScanAttributes }}"
+            err_returns: [nil, err]
+        - call:
+            out: results
+            func: append
+            args: [results, item]
+    - return: results, nil`
 
+	sqlCodeElem := CodeElement{}
+	err := yaml.Unmarshal([]byte(findSQLYaml), &sqlCodeElem)
+	if err != nil {
+		t.Error(err)
+	}
+	t.Log(sqlCodeElem)
 
-	  right: {{ .Name }}ParseParams(reqeust)
-  - call:
-	  out: err
-	  func: Query
-	  args: ["values..."]
-  - new_assign:
-	  left: results
-	  right: "
-  - if:`
+	if result := sqlCodeElem.ToCode(); result != expectedFindGoCode {
+		t.Errorf("sqlCodeElem.ToCode() = %v, want %v", result, expectedFindGoCode)
+	}
+
+	expectedUpdateCode := `stmt := db.preparedCache["UpdateByIdQuery"]
+values := UpdateByIdParseParams(request)
+result, err := stmt.Exec(values...)
+if err != nil {
+	return 0, err
+}
+rowsAffected, err := result.RowsAffected()
+return rowsAffected, err`
+
+	updateSQLYaml := `
+steps:
+    - lookup:
+        nout: stmt
+        obj: db
+        name: preparedCache
+        key: {val: "UpdateByIdQuery"}
+    - call:
+        nout: values
+        func: UpdateByIdParseParams
+        args: request
+    - call:
+        nout: [result, err]
+        obj: stmt
+        func: Exec
+        args: "values..."
+        err_returns: [0, err]
+    - call:
+        nout: [rowsAffected, err]
+        obj: result
+        func: RowsAffected
+    - return: [rowsAffected, err]`
+
+	updateCodeElem := CodeElement{}
+	err = yaml.Unmarshal([]byte(updateSQLYaml), &updateCodeElem)
+	if err != nil {
+		t.Error(err)
+	}
+	t.Log(updateCodeElem)
+
+	if result := updateCodeElem.ToCode(); result != expectedUpdateCode {
+		t.Errorf("updateCodeElem.ToCode() = %v, want %v", result, expectedUpdateCode)
+	}
 }

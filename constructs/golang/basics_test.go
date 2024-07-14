@@ -69,7 +69,7 @@ func TestFunctionCodeGeneration(t *testing.T) {
 			FunctionCall: &FunctionCall{
 				Receiver: "this.Data",
 				Function: "Merge",
-				Params:   "data",
+				Args:     "data",
 			},
 		},
 			{
@@ -119,7 +119,7 @@ func TestStructCodeGeneration(t *testing.T) {
 						FunctionCall: &FunctionCall{
 							Receiver: "this.Logger",
 							Function: "Info",
-							Params: []*Literal{
+							Args: []*Literal{
 								{Value: "Processing"},
 							},
 						},
@@ -203,7 +203,7 @@ func TestGenerateGoFile(t *testing.T) {
 			FunctionCall: &FunctionCall{
 				Receiver: "defaultLogger",
 				Function: "SetLevel",
-				Params:   "DefaultLevel",
+				Args:     "DefaultLevel",
 			},
 		},
 	}
