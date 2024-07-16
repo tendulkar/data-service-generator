@@ -1,0 +1,141 @@
+---
+# All function blocks expects db obj
+# Flow is 
+# 1. Read prepared statement from cache
+# 2. Read values from request
+# 3. Execute statement with values
+# 4. Optionally read rows / results / rows effected
+# 5. Return results
+# The variables are golang templates
+find:
+  steps:
+    - lookup:
+        nout: stmt
+        obj: db
+        name: preparedCache
+        key: {val: "{{ .Name }}"}
+    - call:
+        nout: [values, err]
+        func: "{{ .Name }}ParseParams"
+        args: [reqeust]
+        err_returns: [nil, err]
+    - call:
+        nout: [rows, err]
+        obj: stmt
+        func: Query
+        args: ["values..."]
+        err_returns: [nil, err]
+        clean: 
+            obj: rows
+            func: Close
+    - var:
+        name: results
+        type: "[]{{.ModelName}}"
+    - repeat_cond:
+        cond: {call: {func: Next, obj: rows}}
+        body:
+        - var:
+            name: item
+            type: "{{.ModelName}}"
+        - call:
+            nout: err
+            obj: rows
+            func: Scan
+            args: "{{ .ScanAttributes }}"
+            err_returns: [nil, err]
+        - call:
+            out: results
+            func: append
+            args: [results, item]
+    - return: results, nil
+update:
+  steps:
+    - lookup:
+        nout: stmt
+        obj: db
+        name: preparedCache
+        key: {val: "{{ .Name }}"}
+    - call:
+        nout: [values, err]
+        func: {{ .Name }}ParseParams
+        args: request
+        err_returns: [0, err]
+    - call:
+        nout: [result, err]
+        obj: stmt
+        func: Exec
+        args: "values..."
+        err_returns: [0, err]
+    - call:
+        nout: [rowsAffected, err]
+        obj: result
+        func: RowsAffected
+    - return: [rowsAffected, err]
+add:
+  steps:
+    - lookup:
+        nout: stmt
+        obj: db
+        name: preparedCache
+        key: {val: "{{ .Name }}"}
+    - call:
+        nout: [values, err]
+        func: {{ .Name }}ParseParams
+        args: request
+        err_returns: [0, err]
+    - var:
+        name: id
+        type: int64
+    - call:
+        nout: [result, err]
+        obj: stmt.QueryRow()
+        func: Exec
+        args: ["&id"]
+    - return: [id, err]
+add_or_replace:
+  steps:
+    - lookup:
+        nout: stmt
+        obj: db
+        name: preparedCache
+        key: {val: "{{ .Name }}"}
+    - call:
+        nout: [values, err]
+        func: {{ .Name }}ParseParams
+        args: request
+        err_returns: [0, err]
+    - var:
+        name: id
+        type: int64
+    - var:
+        name: inserted
+        type: bool
+    - call:
+      nout: [err]
+      obj: stmt.QueryRow()
+      func: Exec
+      args: ["&id", "&inserted"]
+    - return: [id, inserted, err]
+delete:
+  steps:
+    - lookup:
+        nout: stmt
+        obj: db
+        name: preparedCache
+        key: {val: "{{ .Name }}"}
+    - call:
+        nout: [values, err]
+        func: {{ .Name }}ParseParams
+        args: request
+        err_returns: [0, err]
+    - call:
+        nout: [result, err]
+        obj: stmt
+        func: Exec
+        args: "values..."
+        err_returns: [0, err]
+    - call:
+        nout: [rowsAffected, err]
+        obj: result
+        func: RowsAffected
+    - return: [rowsAffected, err]

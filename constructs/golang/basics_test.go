@@ -63,7 +63,7 @@ func TestFunctionCodeGeneration(t *testing.T) {
 		Parameters: []*Parameter{
 			{Name: "data", Type: GoType{Name: "*Data", Source: "github.com/example/data"}},
 		},
-		Returns: []*GoType{{Name: "error", Source: ""}},
+		Returns: []*Parameter{{Type: GoType{Name: "error", Source: ""}}},
 		Body: CodeElements{{
 			Imports: []string{"github.com/example/data"},
 			FunctionCall: &FunctionCall{
@@ -113,7 +113,7 @@ func TestStructCodeGeneration(t *testing.T) {
 				Parameters: []*Parameter{
 					{Name: "input", Type: GoType{Name: "[]byte", Source: ""}},
 				},
-				Returns: []*GoType{{Name: "error", Source: ""}},
+				Returns: []*Parameter{{Type: GoType{Name: "error", Source: ""}}},
 				Body: []*CodeElement{
 					{
 						FunctionCall: &FunctionCall{
@@ -164,7 +164,7 @@ func TestGenerateGoFile(t *testing.T) {
 				{
 					Name:       "SetLevel",
 					Parameters: []*Parameter{{Name: "level", Type: GoType{Name: "int", Source: ""}}},
-					Returns:    []*GoType{},
+					Returns:    []*Parameter{},
 					Body: []*CodeElement{
 						{
 							Assign: &Assignment{
@@ -182,7 +182,7 @@ func TestGenerateGoFile(t *testing.T) {
 		{
 			Name:       "NewLogger",
 			Parameters: []*Parameter{},
-			Returns:    []*GoType{{Name: "*Logger", Source: ""}},
+			Returns:    []*Parameter{{Type: GoType{Name: "*Logger", Source: ""}}},
 			Body: []*CodeElement{
 				{
 					Return: &CodeElement{

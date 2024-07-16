@@ -82,3 +82,44 @@ func TestReadYamlTo_EmptyFile(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 }
+
+func TestStringToYaml(t *testing.T) {
+	// Arrange
+	yamlString := `
+name: John Doe
+age: 30
+address:
+  street: 123 Main St
+  city: Anytown
+  state: CA
+`
+	type expectedStruct struct {
+		Name    string
+		Age     int
+		Address struct {
+			Street string
+			City   string
+			State  string
+		}
+	}
+	expected := &expectedStruct{
+		Name: "John Doe",
+		Age:  30,
+		Address: struct {
+			Street string
+			City   string
+			State  string
+		}{
+			Street: "123 Main St",
+			City:   "Anytown",
+			State:  "CA",
+		},
+	}
+
+	// Act
+	result, err := StringToYaml[expectedStruct](yamlString)
+
+	// Assert
+	assert.NoError(t, err)
+	assert.Equal(t, expected, result)
+}

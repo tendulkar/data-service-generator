@@ -10,6 +10,7 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"stellarsky.ai/platform/codegen/data-service-generator/base"
+	"stellarsky.ai/platform/codegen/data-service-generator/base/parser"
 	"stellarsky.ai/platform/codegen/data-service-generator/config"
 	"stellarsky.ai/platform/codegen/data-service-generator/constructs/golang"
 	datahelpers "stellarsky.ai/platform/codegen/data-service-generator/db/generator/data-helpers"
@@ -115,31 +116,38 @@ func GenerateV2(config defs.ModelConfig) error {
 	// GenerateDeleteConfigs(deleteConfigs)
 	// }
 
-	models, _, err := generateModel(&config)
+	models, fns, err := generateModel(&config)
 	if err != nil {
 		return err
 	}
+
+	GenerateFindConfigs(strings.Title(config.Model.Name), config.Access.Find)
 	goSrc := golang.GoSourceFile{
 		Package:      "database",
 		Structs:      models,
-		Functions:    nil,
+		Functions:    fns,
 		InitFunction: nil,
 		Variables:    nil,
 		Constants:    nil}
-	srcCode, err := goSrc.SourceCode()
+	srcCode, deps, err := goSrc.SourceCode()
 	if err != nil {
 		return err
 	}
-	fmt.Println("GenerateV2 Source code", srcCode)
+	fmt.Println("GenerateV2 Source code", srcCode, deps)
 	// base.LOG.Info("Source code", "source", goSrc.SourceCode())
 	GenerateFindConfigs(strings.Title(config.Model.Name), config.Access.Find)
 
 	return nil
 }
 
-func generateContextDBFunction(data any, tmpl *template.Template, modelName string, name string) (*golang.Function, error) {
+func generateContextDBFunction(data any, codeTmpl *template.Template, modelName string, name string) (*golang.Function, error) {
 	buff := new(bytes.Buffer)
-	err := tmpl.Execute(buff, data)
+	err := codeTmpl.Execute(buff, data)
+	if err != nil {
+		return nil, err
+	}
+
+	fnCodeElems, err := parser.StringToYaml[golang.CodeElement](buff.String())
 	if err != nil {
 		return nil, err
 	}
@@ -150,12 +158,10 @@ func generateContextDBFunction(data any, tmpl *template.Template, modelName stri
 			{Name: "db", Type: golang.GoType{Name: fmt.Sprintf("*%sDB", modelName)}},
 			{Name: "request", Type: golang.GoType{Name: fmt.Sprintf("*%sRequest", name)}},
 		},
+		Body: golang.CodeElements{fnCodeElems},
 		Returns: []*golang.GoType{
 			{Name: fmt.Sprintf("*%sResponse", name)},
 			{Name: "error"},
-		},
-		Body: golang.GoCodeBlock{CodeBlock: buff.String(),
-			Sources: []string{},
 		},
 	}
 
@@ -183,15 +189,7 @@ func generateParamsStruct(paramRefs []defs.ParameterRef, name string) *golang.St
 }
 
 func GenerateFindConfigs(modelName string, findConfig []defs.AccessConfig) ([]*golang.Function, []*golang.Struct, error) {
-	tmpl, err := template.New("find").Funcs(template.FuncMap{
-		"Args":                Args,
-		"Join":                Join,
-		"AttributeNames":      AttributeNames,
-		"AttributeValues":     AttributeValues,
-		"SetClause":           SetClause,
-		"ScanArgs":            ScanArgs,
-		"ApplyTransformation": ApplyTransformation,
-	}).Parse(findTemplate)
+	tmpl, err := template.New("find").Parse(findCodeYamlTemplate)
 
 	if err != nil {
 		return nil, nil, err
@@ -224,8 +222,8 @@ func GenerateFindConfigs(modelName string, findConfig []defs.AccessConfig) ([]*g
 
 		data := struct {
 			Name           string
-			ScanAttributes string
 			ModelName      string
+			ScanAttributes string
 		}{
 			ModelName:      modelName,
 			Name:           findConf.Name,
@@ -255,9 +253,7 @@ func GenerateFindConfigs(modelName string, findConfig []defs.AccessConfig) ([]*g
 				{Name: "request", Type: golang.GoType{Name: fmt.Sprintf("*%sRequest", findConf.Name)}},
 			},
 			Returns: []*golang.GoType{&golang.GoInterfaceArrayType},
-			Body: golang.GoCodeBlock{CodeBlock: readParamsCode.String(),
-				Sources: []string{},
-			},
+			Body:    nil,
 		}
 
 		functions = append(functions, paramFn)
@@ -311,10 +307,7 @@ func GenerateUpdateConfigs(modelName string, updateConfig []defs.AccessConfig) (
 			Returns: []*golang.GoType{
 				&golang.GoErrorType,
 			},
-			Body: golang.GoCodeBlock{
-				CodeBlock: buff.String(),
-				Sources:   []string{},
-			},
+			Body: nil,
 		}
 
 		functions = append(functions, fn)

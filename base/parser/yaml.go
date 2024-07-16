@@ -21,3 +21,13 @@ func ReadYamlTo[T any](filename string) (*T, error) {
 	}
 	return &t, nil
 }
+
+func StringToYaml[T any](s string) (*T, error) {
+	var t T
+	err := yaml.Unmarshal([]byte(s), &t)
+	if err != nil {
+		base.LOG.Error("Error parsing yaml", "error", err, "string", s)
+		return &t, err
+	}
+	return &t, nil
+}

@@ -140,6 +140,11 @@ type GoCodeBlock struct {
 	Sources   []string // Additional import paths required by the code block
 }
 
+type GoReturnType struct {
+	GoType  *GoType `yaml:"type"`
+	VarName string  `yaml:"var_name,omitempty"`
+}
+
 type Variable struct {
 	Name  string `yaml:"name"`
 	Type  GoType `yaml:"type,omitempty"`
@@ -161,7 +166,7 @@ type Dependency struct {
 type Function struct {
 	Name         string       `yaml:"name,omitempty"`
 	Parameters   []*Parameter `yaml:"params,omitempty"`
-	Returns      []*GoType    `yaml:"returns,omitempty"`
+	Returns      []*Parameter `yaml:"returns,omitempty"`
 	Body         CodeElements `yaml:"body,omitempty"`
 	Receiver     *Receiver    `yaml:"receiver,omitempty"` // Nil if not a member function
 	Dependencies []Dependency `yaml:"dependencies,omitempty"`
@@ -245,9 +250,12 @@ func (f Function) FunctionCode() (string, map[string]bool) {
 	// Generate return types string
 	var returns []string
 	for _, ret := range f.Returns {
-		retType := ret.Name
-		if !strings.HasPrefix(retType, "*") && ret.Source != "" {
+		retType := ret.Type.Name
+		if !strings.HasPrefix(retType, "*") && ret.Type.Source != "" {
 			retType = "*" + retType
+		}
+		if ret.Name != "" {
+			retType = fmt.Sprintf("%s %s", ret.Name, retType)
 		}
 		returns = append(returns, retType)
 	}
@@ -296,7 +304,7 @@ func (s *GoSourceFile) SourceCode() (string, map[Dependency]bool, error) {
 }
 
 // gatherSources collects import sources from parameters and returns.
-func gatherSources(params []*Parameter, elems CodeElements, fields []*Field, returns []*GoType) map[string]bool {
+func gatherSources(params []*Parameter, elems CodeElements, fields []*Field, returns []*Parameter) map[string]bool {
 	uniqueSources := make(map[string]bool)
 	for _, param := range params {
 		if param.Type.Source != "" {
@@ -309,8 +317,8 @@ func gatherSources(params []*Parameter, elems CodeElements, fields []*Field, ret
 		}
 	}
 	for _, ret := range returns {
-		if ret.Source != "" {
-			uniqueSources[ret.Source] = true
+		if ret.Type.Source != "" {
+			uniqueSources[ret.Type.Source] = true
 		}
 	}
 
@@ -489,7 +497,7 @@ func GenerateGoFile(packageName string, structs []*Struct, functions []*Function
 	return string(srcCode), allDependencies, nil
 }
 
-func collectImports(allImports map[string]bool, parameters []*Parameter, fields []*Field, returns []*GoType) {
+func collectImports(allImports map[string]bool, parameters []*Parameter, fields []*Field, returns []*Parameter) {
 	for _, param := range parameters {
 		if param.Type.Source != "" {
 			allImports[param.Type.Source] = true
@@ -501,8 +509,8 @@ func collectImports(allImports map[string]bool, parameters []*Parameter, fields 
 		}
 	}
 	for _, ret := range returns {
-		if ret.Source != "" {
-			allImports[ret.Source] = true
+		if ret.Type.Source != "" {
+			allImports[ret.Type.Source] = true
 		}
 	}
 }
