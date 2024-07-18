@@ -334,9 +334,10 @@ type MapLookup struct {
 }
 
 type ErrorHandler struct {
-	Error        string       `yaml:"err,omitempty"`
-	ErrorReturns interface{}  `yaml:"err_returns,omitempty"`
-	ErrorSteps   CodeElements `yaml:"err_steps,omitempty"`
+	Error                string       `yaml:"err,omitempty"`
+	ErrorReturns         interface{}  `yaml:"err_returns,omitempty"`
+	ErrorFunctionReturns []*Parameter `yaml:"err_func_returns,omitempty"`
+	ErrorSteps           CodeElements `yaml:"err_steps,omitempty"`
 }
 
 type CleanningHandler struct {
@@ -794,6 +795,19 @@ func resolveOutputs(output, newOutput interface{}) string {
 	return fmt.Sprintf("%s := ", resolveStringOrArray(newOutput))
 }
 
+func findZeroValues(params []*Parameter, errName string) []string {
+	var zeroValues []string
+	for _, p := range params {
+		if p.Type.Name == "error" {
+			continue
+		}
+		zeroValues = append(zeroValues, p.Type.ZeroValue())
+	}
+
+	zeroValues = append(zeroValues, errName)
+	return zeroValues
+}
+
 func (fc *FunctionCall) ToCode() string {
 	leftSide := resolveOutputs(fc.Output, fc.NewOutput)
 	argsCode := resolveStringOrCodeElement(fc.Args, ", ")
@@ -844,18 +858,20 @@ func (ml *MapLookup) ToCode() string {
 }
 
 func (eh *ErrorHandler) ToCode() string {
+	errName := eh.Error
+	if errName == "" {
+		errName = "err"
+	}
+
 	errPart := ""
 	if eh.ErrorReturns != nil {
 		errPart = IndentCode(ReturnToCode(eh.ErrorReturns), 1)
 	} else if eh.ErrorSteps != nil {
 		errPart = bodyCodeGen(eh.ErrorSteps)
+	} else if eh.ErrorFunctionReturns != nil {
+		errPart = IndentCode(ReturnToCode(findZeroValues(eh.ErrorFunctionReturns, errName)), 1)
 	} else {
 		return ""
-	}
-
-	errName := eh.Error
-	if errName == "" {
-		errName = "err"
 	}
 
 	errCode := fmt.Sprintf("if %s != nil {\n%s\n}", errName, errPart)

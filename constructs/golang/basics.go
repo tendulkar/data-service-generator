@@ -9,61 +9,62 @@ import (
 
 // GoType represents a type in Go with a name and an optional import source.
 type GoType struct {
-	Name   string `yaml:"name"`             // Name of the type, could be a funciton too. example: func(logger *zap.Logger) (*zap.Logger, error)
-	Source string `yaml:"source,omitempty"` // Import path, empty if it's a built-in type
+	Name         string `yaml:"name"`              // Name of the type, could be a funciton too. example: func(logger *zap.Logger) (*zap.Logger, error)
+	Source       string `yaml:"source,omitempty"`  // Import path, empty if it's a built-in type
+	DefaultValue string `yaml:"default,omitempty"` // Default value for the type, if any.
 }
 
 var (
-	GoBoolType                  = GoType{Name: "bool"}
-	GoIntType                   = GoType{Name: "int"}
-	GoInt8Type                  = GoType{Name: "int8"}
-	GoInt16Type                 = GoType{Name: "int16"}
-	GoInt32Type                 = GoType{Name: "int32"}
-	GoInt64Type                 = GoType{Name: "int64"}
-	GoUintType                  = GoType{Name: "uint"}
-	GoUint8Type                 = GoType{Name: "uint8"}
-	GoUint16Type                = GoType{Name: "uint16"}
-	GoUint32Type                = GoType{Name: "uint32"}
-	GoUint64Type                = GoType{Name: "uint64"}
-	GoFloat32Type               = GoType{Name: "float32"}
-	GoFloat64Type               = GoType{Name: "float64"}
-	GoComplex64Type             = GoType{Name: "complex64"}
-	GoStringType                = GoType{Name: "string"}
-	GoErrorType                 = GoType{Name: "error"}
-	GoInterfaceType             = GoType{Name: "interface{}"}
-	GoAnyType                   = GoType{Name: "any"}
-	GoInterfaceArrayType        = GoType{Name: "[]interface{}"}
-	GoBoolArrayType             = GoType{Name: "[]bool"}
-	GoIntArrayType              = GoType{Name: "[]int"}
-	GoInt8ArrayType             = GoType{Name: "[]int8"}
-	GoInt16ArrayType            = GoType{Name: "[]int16"}
-	GoInt32ArrayType            = GoType{Name: "[]int32"}
-	GoInt64ArrayType            = GoType{Name: "[]int64"}
-	GoUintArrayType             = GoType{Name: "[]uint"}
-	GoUint8ArrayType            = GoType{Name: "[]uint8"}
-	GoUint16ArrayType           = GoType{Name: "[]uint16"}
-	GoUint32ArrayType           = GoType{Name: "[]uint32"}
-	GoUint64ArrayType           = GoType{Name: "[]uint64"}
-	GoFloat32ArrayType          = GoType{Name: "[]float32"}
-	GoFloat64ArrayType          = GoType{Name: "[]float64"}
-	GoComplex64ArrayType        = GoType{Name: "[]complex64"}
-	GoStringArrayType           = GoType{Name: "[]string"}
-	GoErrorArrayType            = GoType{Name: "[]error"}
-	GoStringBoolMapType         = GoType{Name: "map[string]bool"}
-	GoStringIntMapType          = GoType{Name: "map[string]int"}
-	GoStringInt8MapType         = GoType{Name: "map[string]int8"}
-	GoStringInt16MapType        = GoType{Name: "map[string]int16"}
-	GoStringInt32MapType        = GoType{Name: "map[string]int32"}
-	GoStringInt64MapType        = GoType{Name: "map[string]int64"}
-	GoStringUintMapType         = GoType{Name: "map[string]uint"}
-	GoStringUint8MapType        = GoType{Name: "map[string]uint8"}
-	GoStringUint16MapType       = GoType{Name: "map[string]uint16"}
-	GoStringUint32MapType       = GoType{Name: "map[string]uint32"}
-	GoStringUint64MapType       = GoType{Name: "map[string]uint64"}
-	GoStringFloat64MapType      = GoType{Name: "map[string]float64"}
-	GoStringStringMapType       = GoType{Name: "map[string]string"}
-	GoStringInterfaceMapType    = GoType{Name: "map[string]interface{}"}
-	GoInterfaceInterfaceMapType = GoType{Name: "map[interface{}]interface{}"}
+	GoBoolType                  = GoType{Name: "bool", DefaultValue: "false"}
+	GoIntType                   = GoType{Name: "int", DefaultValue: "0"}
+	GoInt8Type                  = GoType{Name: "int8", DefaultValue: "int8(0)"}
+	GoInt16Type                 = GoType{Name: "int16", DefaultValue: "int16(0)"}
+	GoInt32Type                 = GoType{Name: "int32", DefaultValue: "int32(0)"}
+	GoInt64Type                 = GoType{Name: "int64", DefaultValue: "int64(0)"}
+	GoUintType                  = GoType{Name: "uint", DefaultValue: "uint(0)"}
+	GoUint8Type                 = GoType{Name: "uint8", DefaultValue: "uint8(0)"}
+	GoUint16Type                = GoType{Name: "uint16", DefaultValue: "uint16(0)"}
+	GoUint32Type                = GoType{Name: "uint32", DefaultValue: "uint32(0)"}
+	GoUint64Type                = GoType{Name: "uint64", DefaultValue: "uint64(0)"}
+	GoFloat32Type               = GoType{Name: "float32", DefaultValue: "float32(0)"}
+	GoFloat64Type               = GoType{Name: "float64", DefaultValue: "float64(0)"}
+	GoComplex64Type             = GoType{Name: "complex64", DefaultValue: "complex64(0)"}
+	GoStringType                = GoType{Name: "string", DefaultValue: `""`}
+	GoErrorType                 = GoType{Name: "error", DefaultValue: "nil"}
+	GoInterfaceType             = GoType{Name: "interface{}", DefaultValue: "nil"}
+	GoAnyType                   = GoType{Name: "any", DefaultValue: "nil"}
+	GoInterfaceArrayType        = GoType{Name: "[]interface{}", DefaultValue: "nil"}
+	GoBoolArrayType             = GoType{Name: "[]bool", DefaultValue: "nil"}
+	GoIntArrayType              = GoType{Name: "[]int", DefaultValue: "nil"}
+	GoInt8ArrayType             = GoType{Name: "[]int8", DefaultValue: "nil"}
+	GoInt16ArrayType            = GoType{Name: "[]int16", DefaultValue: "nil"}
+	GoInt32ArrayType            = GoType{Name: "[]int32", DefaultValue: "nil"}
+	GoInt64ArrayType            = GoType{Name: "[]int64", DefaultValue: "nil"}
+	GoUintArrayType             = GoType{Name: "[]uint", DefaultValue: "nil"}
+	GoUint8ArrayType            = GoType{Name: "[]uint8", DefaultValue: "nil"}
+	GoUint16ArrayType           = GoType{Name: "[]uint16", DefaultValue: "nil"}
+	GoUint32ArrayType           = GoType{Name: "[]uint32", DefaultValue: "nil"}
+	GoUint64ArrayType           = GoType{Name: "[]uint64", DefaultValue: "nil"}
+	GoFloat32ArrayType          = GoType{Name: "[]float32", DefaultValue: "nil"}
+	GoFloat64ArrayType          = GoType{Name: "[]float64", DefaultValue: "nil"}
+	GoComplex64ArrayType        = GoType{Name: "[]complex64", DefaultValue: "nil"}
+	GoStringArrayType           = GoType{Name: "[]string", DefaultValue: "nil"}
+	GoErrorArrayType            = GoType{Name: "[]error", DefaultValue: "nil"}
+	GoStringBoolMapType         = GoType{Name: "map[string]bool", DefaultValue: "nil"}
+	GoStringIntMapType          = GoType{Name: "map[string]int", DefaultValue: "nil"}
+	GoStringInt8MapType         = GoType{Name: "map[string]int8", DefaultValue: "nil"}
+	GoStringInt16MapType        = GoType{Name: "map[string]int16", DefaultValue: "nil"}
+	GoStringInt32MapType        = GoType{Name: "map[string]int32", DefaultValue: "nil"}
+	GoStringInt64MapType        = GoType{Name: "map[string]int64", DefaultValue: "nil"}
+	GoStringUintMapType         = GoType{Name: "map[string]uint", DefaultValue: "nil"}
+	GoStringUint8MapType        = GoType{Name: "map[string]uint8", DefaultValue: "nil"}
+	GoStringUint16MapType       = GoType{Name: "map[string]uint16", DefaultValue: "nil"}
+	GoStringUint32MapType       = GoType{Name: "map[string]uint32", DefaultValue: "nil"}
+	GoStringUint64MapType       = GoType{Name: "map[string]uint64", DefaultValue: "nil"}
+	GoStringFloat64MapType      = GoType{Name: "map[string]float64", DefaultValue: "nil"}
+	GoStringStringMapType       = GoType{Name: "map[string]string", DefaultValue: "nil"}
+	GoStringInterfaceMapType    = GoType{Name: "map[string]interface{}", DefaultValue: "nil"}
+	GoInterfaceInterfaceMapType = GoType{Name: "map[interface{}]interface{}", DefaultValue: "nil"}
 )
 
 // typeMap maps type names to their corresponding GoType structs
@@ -120,12 +121,33 @@ var typeMap = map[string]GoType{
 	"map[interface{}]interface{}": GoInterfaceInterfaceMapType,
 }
 
+var zeorValueMap map[string]string
+
+func init() {
+	zeorValueMap = make(map[string]string)
+	for tpe, goType := range typeMap {
+		zeorValueMap[tpe] = goType.DefaultValue
+	}
+}
+
 // findGoType takes a Go type name as a string and returns the corresponding GoType.
 func TranslateToGoType(typeName string) (*GoType, error) {
 	if goType, ok := typeMap[typeName]; ok {
 		return &goType, nil
 	}
 	return &GoType{}, fmt.Errorf("type %s not found", typeName)
+}
+
+func (gt GoType) ZeroValue() string {
+	if gt.DefaultValue != "" {
+		return gt.DefaultValue
+	} else if strings.HasPrefix(gt.Name, "[]") || strings.HasPrefix(gt.Name, "map[") || strings.HasPrefix(gt.Name, "*") {
+		return "nil"
+	} else if zv, ok := zeorValueMap[gt.Name]; ok {
+		return zv
+	} else {
+		return fmt.Sprintf("%s{}", gt.Name)
+	}
 }
 
 // Parameter represents a function parameter, using GoType.

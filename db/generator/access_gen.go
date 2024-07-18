@@ -159,9 +159,9 @@ func generateContextDBFunction(data any, codeTmpl *template.Template, modelName 
 			{Name: "request", Type: golang.GoType{Name: fmt.Sprintf("*%sRequest", name)}},
 		},
 		Body: golang.CodeElements{fnCodeElems},
-		Returns: []*golang.GoType{
-			{Name: fmt.Sprintf("*%sResponse", name)},
-			{Name: "error"},
+		Returns: []*golang.Parameter{
+			{Type: golang.GoType{Name: fmt.Sprintf("*%sResponse", name)}, Name: "response"},
+			{Type: golang.GoType{Name: "error"}, Name: "err"},
 		},
 	}
 
@@ -189,11 +189,6 @@ func generateParamsStruct(paramRefs []defs.ParameterRef, name string) *golang.St
 }
 
 func GenerateFindConfigs(modelName string, findConfig []defs.AccessConfig) ([]*golang.Function, []*golang.Struct, error) {
-	tmpl, err := template.New("find").Parse(findCodeYamlTemplate)
-
-	if err != nil {
-		return nil, nil, err
-	}
 
 	readParamsTmpl, err := template.New("params").Parse(readParamsToValues)
 
@@ -220,20 +215,8 @@ func GenerateFindConfigs(modelName string, findConfig []defs.AccessConfig) ([]*g
 		reqs = append(reqs, paramsStruct)
 		reqs = append(reqs, req)
 
-		data := struct {
-			Name           string
-			ModelName      string
-			ScanAttributes string
-		}{
-			ModelName:      modelName,
-			Name:           findConf.Name,
-			ScanAttributes: ScanArgs(findConf.Attributes),
-		}
+		fn := FindCodeFunction(modelName, findConf.Name, findConf.Attributes)
 
-		fn, err := generateContextDBFunction(data, tmpl, modelName, findConf.Name)
-		if err != nil {
-			return functions, reqs, err
-		}
 		functions = append(functions, fn)
 
 		paramsData := struct {
@@ -247,15 +230,7 @@ func GenerateFindConfigs(modelName string, findConfig []defs.AccessConfig) ([]*g
 			return functions, reqs, err
 		}
 
-		paramFn := &golang.Function{
-			Name: fmt.Sprintf("%sReadParams", findConf.Name),
-			Parameters: []*golang.Parameter{
-				{Name: "request", Type: golang.GoType{Name: fmt.Sprintf("*%sRequest", findConf.Name)}},
-			},
-			Returns: []*golang.GoType{&golang.GoInterfaceArrayType},
-			Body:    nil,
-		}
-
+		paramFn := ReadParamsFunction(paramRefs, findConf.Name, "values", "request")
 		functions = append(functions, paramFn)
 		fmt.Println(readParamsCode.String())
 	}
@@ -297,18 +272,7 @@ func GenerateUpdateConfigs(modelName string, updateConfig []defs.AccessConfig) (
 		if err != nil {
 			return nil, err
 		}
-		fn := &golang.Function{
-			Name: updateConf.Name,
-			Parameters: []*golang.Parameter{
-				{Name: "ctx", Type: golang.GoType{Name: "context.Context", Source: "context"}},
-				{Name: "db", Type: golang.GoType{Name: fmt.Sprintf("*%sDB", modelName)}},
-				{Name: "request", Type: golang.GoType{Name: fmt.Sprintf("*%sRequest", updateConf.Name)}},
-			},
-			Returns: []*golang.GoType{
-				&golang.GoErrorType,
-			},
-			Body: nil,
-		}
+		fn := UpdateCodeFunction(updateConf.Name)
 
 		functions = append(functions, fn)
 		fmt.Println(buff.String())

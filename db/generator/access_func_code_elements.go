@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stellarsky.ai/platform/codegen/data-service-generator/constructs/golang"
+	"stellarsky.ai/platform/codegen/data-service-generator/db/generator/defs"
 )
 
 func lookupStmtCE(confName string, dbName, cacheName, stmtName string) *golang.MapLookup {
@@ -15,25 +16,25 @@ func lookupStmtCE(confName string, dbName, cacheName, stmtName string) *golang.M
 	}
 }
 
-func parseParamsCE(confName string, requestName string, valuesName string) *golang.FunctionCall {
+func parseParamsCE(confName string, requestParamsName string, valuesName string, returnParams []*golang.Parameter) *golang.FunctionCall {
 	return &golang.FunctionCall{
 		NewOutput: []string{valuesName, "err"},
 		Function:  fmt.Sprintf("%sParseParams", confName),
-		Args:      []string{requestName},
+		Args:      []string{requestParamsName},
 		ErrorHandler: golang.ErrorHandler{
-			ErrorReturns: []string{"nil", "err"},
+			ErrorFunctionReturns: returnParams,
 		},
 	}
 }
 
-func queryStmtCE(stmtName, valuesName, rowsName string) *golang.FunctionCall {
+func queryStmtCE(stmtName, valuesName, rowsName string, returnParams []*golang.Parameter) *golang.FunctionCall {
 	return &golang.FunctionCall{
 		NewOutput: []string{rowsName, "err"},
 		Receiver:  stmtName,
 		Function:  "Query",
 		Args:      []string{fmt.Sprintf("%s...", valuesName)},
 		ErrorHandler: golang.ErrorHandler{
-			ErrorReturns: []string{"nil", "err"},
+			ErrorFunctionReturns: returnParams,
 		},
 		CleanningHandler: golang.CleanningHandler{
 			Receiver: rowsName,
@@ -42,26 +43,27 @@ func queryStmtCE(stmtName, valuesName, rowsName string) *golang.FunctionCall {
 	}
 }
 
-func queryRowStmtCE(stmtName string, args []string, resultName, zeroResultName string) *golang.FunctionCall {
+func queryRowStmtCE(stmtName string, args []string, valuesName string, returnParams []*golang.Parameter) *golang.FunctionCall {
 	return &golang.FunctionCall{
-		NewOutput: []string{resultName, "err"},
-		Receiver:  fmt.Sprintf("%s.QueryRow()", stmtName),
-		Function:  "Exec",
+		NewOutput: []string{"queryErr"},
+		Receiver:  fmt.Sprintf("%s.QueryRow(%s...)", stmtName, valuesName),
+		Function:  "Scan",
 		Args:      args,
 		ErrorHandler: golang.ErrorHandler{
-			ErrorReturns: []string{zeroResultName, "err"},
+			Error:                "queryErr",
+			ErrorFunctionReturns: returnParams,
 		},
 	}
 }
 
-func execStmtCE(stmtName, valuesName, resultName string) *golang.FunctionCall {
+func execStmtCE(stmtName, valuesName, resultName string, returnParams []*golang.Parameter) *golang.FunctionCall {
 	return &golang.FunctionCall{
 		NewOutput: []string{resultName, "err"},
 		Receiver:  stmtName,
 		Function:  "Exec",
 		Args:      []string{fmt.Sprintf("%s...", valuesName)},
 		ErrorHandler: golang.ErrorHandler{
-			ErrorReturns: []string{"0", "err"},
+			ErrorFunctionReturns: returnParams,
 		},
 	}
 }
@@ -81,10 +83,14 @@ func appendCE(arr string, value string) *golang.FunctionCall {
 	}
 }
 
-func returnResultNilCE(results string) *golang.CodeElement {
+func returnValuesCE(values ...string) *golang.CodeElement {
 	return &golang.CodeElement{
-		Return: []string{results, "nil"},
+		Return: values,
 	}
+}
+
+func returnResultNilCE(results string) *golang.CodeElement {
+	return returnValuesCE(results, "nil")
 }
 
 func attributeRefArgs(itemName string, attributes []string) []string {
@@ -149,27 +155,27 @@ func dbParamCE(dbName string) *golang.Parameter {
 	}
 }
 
-func requestParamCE(confName string, requestName string) *golang.Parameter {
+func requestParamsCE(confName string, requestParamsName string) *golang.Parameter {
 	return &golang.Parameter{
-		Name: requestName,
+		Name: requestParamsName,
 		Type: golang.GoType{
-			Name: fmt.Sprintf("%sRequest", confName),
+			Name: fmt.Sprintf("%sParams", confName),
 		},
 	}
 }
 
-func dbRequestParamsCE(dbName, name, requestName string) []*golang.Parameter {
+func dbRequestParamsCE(dbName, name, requestParamsName string) []*golang.Parameter {
 	return []*golang.Parameter{
 		dbParamCE(dbName),
-		requestParamCE(name, requestName),
+		requestParamsCE(name, requestParamsName),
 	}
 }
 
-func ctxDBRequestParamsCE(ctxName, dbName, name, requestName string) []*golang.Parameter {
+func ctxDBRequestParamsCE(ctxName, dbName, name, requestParamsName string) []*golang.Parameter {
 	params := []*golang.Parameter{
 		ctxParamCE(ctxName),
 	}
-	params = append(params, dbRequestParamsCE(dbName, name, requestName)...)
+	params = append(params, dbRequestParamsCE(dbName, name, requestParamsName)...)
 	return params
 }
 
@@ -211,121 +217,130 @@ func typeOnlyParamsCE(types ...string) []*golang.Parameter {
 	return params
 }
 
-func callResultErrorCE(objName, funcName string, args []string, resultName string, errorName string) *golang.FunctionCall {
+func callResultErrorCE(objName, funcName string, args []string, resultName string, errorName string, returnParams []*golang.Parameter) *golang.FunctionCall {
 	return &golang.FunctionCall{
 		NewOutput: []string{resultName, errorName},
 		Receiver:  objName,
 		Function:  funcName,
 		Args:      args,
+		ErrorHandler: golang.ErrorHandler{
+			Error:                errorName,
+			ErrorFunctionReturns: returnParams,
+		},
 	}
 }
 
-func findCodeBody(modelName, name string, attributes []string) *golang.Function {
+func callRowsAffectedCE(objName, resultName, errorName string, returnParams []*golang.Parameter) *golang.FunctionCall {
+	return callResultErrorCE(objName, "RowsAffected", []string{}, resultName, errorName, returnParams)
+}
+
+func FindCodeFunction(modelName, name string, attributes []string) *golang.Function {
+	fnReturns := resultsErrorParamsCE(modelName, "results", "err", "")
 	codeElems := golang.CodeElements{
 		{
 			MapLookup: lookupStmtCE(name, "db", "preparedCache", "stmt"),
 		},
 		{
-			FunctionCall: parseParamsCE(name, "request", "values"),
+			FunctionCall: parseParamsCE(name, "requestParams", "values", fnReturns),
 		},
 		{
-			FunctionCall: queryStmtCE("stmt", "values", "rows"),
+			FunctionCall: queryStmtCE("stmt", "values", "rows", fnReturns),
 		},
 		{
 			Variable: createVarCE("results", fmt.Sprintf("[]%s", modelName)),
 		},
 		{
-			RepeatCond: scanResultsCE(name, attributes, "results"),
+			RepeatCond: scanResultsCE(modelName, attributes, "results"),
 		},
 		{
 			Return: []string{"results", "nil"},
 		},
 	}
 
-	params := ctxDBRequestParamsCE("ctx", "db", name, "request")
-	returns := resultsErrorParamsCE(modelName, "results", "err", "")
+	params := ctxDBRequestParamsCE("ctx", "db", name, "requestParams")
 	dependencies := []golang.Dependency{}
 
 	fn := &golang.Function{
 		Name:         name,
 		Parameters:   params,
 		Body:         codeElems,
-		Returns:      returns,
+		Returns:      fnReturns,
 		Dependencies: dependencies,
 	}
 
 	return fn
 }
 
-func updateCodeBody(name string) *golang.Function {
+func UpdateCodeFunction(name string) *golang.Function {
+	fnReturns := typeOnlyParamsCE("int64", "error")
+
 	codeElems := golang.CodeElements{
 		{
 			MapLookup: lookupStmtCE(name, "db", "preparedCache", "stmt"),
 		},
 		{
-			FunctionCall: parseParamsCE(name, "request", "values"),
+			FunctionCall: parseParamsCE(name, "requestParams", "values", fnReturns),
 		},
 		{
-			FunctionCall: execStmtCE("stmt", "values", "result"),
+			FunctionCall: execStmtCE("stmt", "values", "result", fnReturns),
 		},
 		{
-			FunctionCall: callResultErrorCE("result", "RowsAffected", []string{}, "rowsEffected", "err"),
+			FunctionCall: callRowsAffectedCE("result", "rowsAffected", "err", fnReturns),
 		},
 		{
-			Return: []string{"rowsEffected", "err"},
+			Return: []string{"rowsAffected", "nil"},
 		},
 	}
-	params := ctxDBRequestParamsCE("ctx", "db", name, "request")
-	returns := typeOnlyParamsCE("int64", "error")
-	dependencies := make([]golang.Dependency, 0, 0)
+	params := ctxDBRequestParamsCE("ctx", "db", name, "requestParams")
+	dependencies := make([]golang.Dependency, 0)
 	fn := &golang.Function{
 		Name:         name,
 		Parameters:   params,
 		Body:         codeElems,
-		Returns:      returns,
+		Returns:      fnReturns,
 		Dependencies: dependencies,
 	}
 	return fn
 }
 
-func addCodeFunction(name string) *golang.Function {
+func AddCodeFunction(name string) *golang.Function {
+	fnReturns := typeOnlyParamsCE("int64", "error")
 	codeElems := golang.CodeElements{
 		{
 			MapLookup: lookupStmtCE(name, "db", "preparedCache", "stmt"),
 		},
 		{
-			FunctionCall: parseParamsCE(name, "request", "values"),
+			FunctionCall: parseParamsCE(name, "requestParams", "values", fnReturns),
 		},
 		{
 			Variable: createVarCE("id", "int64"),
 		},
 		{
-			FunctionCall: queryRowStmtCE("stmt", []string{"&id"}, "result"),
+			FunctionCall: queryRowStmtCE("stmt", []string{"&id"}, "values", fnReturns),
 		},
 		{
-			Return: []string{"id", "err"},
+			Return: []string{"id", "nil"},
 		},
 	}
-	params := ctxDBRequestParamsCE("ctx", "db", name, "request")
-	returns := typeOnlyParamsCE("int64", "error")
-	dependencies := make([]golang.Dependency, 0, 0)
+	params := ctxDBRequestParamsCE("ctx", "db", name, "requestParams")
 	fn := &golang.Function{
 		Name:         name,
 		Parameters:   params,
 		Body:         codeElems,
-		Returns:      returns,
-		Dependencies: dependencies,
+		Returns:      fnReturns,
+		Dependencies: nil,
 	}
 	return fn
 }
 
-func addOrReplaceCodeFunction(name string) *golang.Function {
+func AddOrReplaceCodeFunction(name string) *golang.Function {
+	fnReturns := typeOnlyParamsCE("int64", "bool", "error")
 	codeElems := golang.CodeElements{
 		{
 			MapLookup: lookupStmtCE(name, "db", "preparedCache", "stmt"),
 		},
 		{
-			FunctionCall: parseParamsCE(name, "request", "values"),
+			FunctionCall: parseParamsCE(name, "requestParams", "values", fnReturns),
 		},
 		{
 			Variable: createVarCE("id", "int64"),
@@ -334,52 +349,91 @@ func addOrReplaceCodeFunction(name string) *golang.Function {
 			Variable: createVarCE("inserted", "bool"),
 		},
 		{
-			FunctionCall: queryRowStmtCE("stmt", []string{"&id", "&inserted"}, "result", "err"),
+			FunctionCall: queryRowStmtCE("stmt", []string{"&id", "&inserted"}, "values", fnReturns),
 		},
 		{
-			Return: []string{"id", "inserted", "err"},
+			Return: []string{"id", "inserted", "nil"},
 		},
 	}
-	params := ctxDBRequestParamsCE("ctx", "db", name, "request")
-	returns := typeOnlyParamsCE("int64", "bool", "error")
-	dependencies := make([]golang.Dependency, 0, 0)
+	params := ctxDBRequestParamsCE("ctx", "db", name, "requestParams")
 	fn := &golang.Function{
 		Name:         name,
 		Parameters:   params,
 		Body:         codeElems,
-		Returns:      returns,
-		Dependencies: dependencies,
+		Returns:      fnReturns,
+		Dependencies: nil,
 	}
 	return fn
 }
 
-func deleteCodeFunction(name string) *golang.Function {
+func DeleteCodeFunction(name string) *golang.Function {
+	fnReturns := typeOnlyParamsCE("int64", "error")
 	codeElems := golang.CodeElements{
 		{
 			MapLookup: lookupStmtCE(name, "db", "preparedCache", "stmt"),
 		},
 		{
-			FunctionCall: parseParamsCE(name, "request", "values"),
+			FunctionCall: parseParamsCE(name, "requestParams", "values", fnReturns),
 		},
 		{
-			FunctionCall: execStmtCE("stmt", "values", "result"),
+			FunctionCall: execStmtCE("stmt", "values", "result", fnReturns),
 		},
 		{
-			FunctionCall: callResultErrorCE("result", "RowsAffected", []string{}, "rowsEffected", "err"),
+			FunctionCall: callRowsAffectedCE("result", "rowsAffected", "err", fnReturns),
 		},
 		{
-			Return: []string{"rowsEffected", "err"},
+			Return: []string{"rowsAffected", "nil"},
 		},
 	}
-	params := ctxDBRequestParamsCE("ctx", "db", name, "request")
-	returns := typeOnlyParamsCE("int64", "error")
-	dependencies := make([]golang.Dependency, 0, 0)
+	params := ctxDBRequestParamsCE("ctx", "db", name, "requestParams")
 	fn := &golang.Function{
 		Name:         name,
 		Parameters:   params,
 		Body:         codeElems,
-		Returns:      returns,
-		Dependencies: dependencies,
+		Returns:      fnReturns,
+		Dependencies: nil,
 	}
+	return fn
+}
+
+func ReadParamsFunction(paramRefs []defs.ParameterRef, confName string,
+	valuesName string, paramsName string) *golang.Function {
+	body := golang.CodeElements{
+		{
+			Variable: createVarCE(valuesName, "[]interface{}"),
+		},
+	}
+
+	for _, paramRef := range paramRefs {
+		paramArg := fmt.Sprintf("%s.%s", paramsName, paramRef.Name)
+		if paramRef.Index != -1 {
+			paramArg = fmt.Sprintf("%s.([]interface{})[%d]", paramArg, paramRef.Index)
+		}
+		body = append(body, &golang.CodeElement{
+			FunctionCall: appendCE(valuesName, paramArg),
+		})
+	}
+
+	body = append(body, returnResultNilCE(valuesName))
+
+	fnParams := []*golang.Parameter{
+		{
+			Name: paramsName,
+			Type: golang.GoType{
+				Name: fmt.Sprintf("%sParams", confName),
+			},
+		},
+	}
+
+	fnName := fmt.Sprintf("%sReadParams", confName)
+	fnReturns := typeOnlyParamsCE("[]interface{}", "error")
+	fn := &golang.Function{
+		Name:         fnName,
+		Parameters:   fnParams,
+		Body:         body,
+		Returns:      fnReturns,
+		Dependencies: nil,
+	}
+
 	return fn
 }
