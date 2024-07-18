@@ -1,16 +1,14 @@
 package generator
 
 import (
-	"bytes"
 	"fmt"
+	"maps"
 	"os"
-	"strings"
 	"text/template"
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"stellarsky.ai/platform/codegen/data-service-generator/base"
-	"stellarsky.ai/platform/codegen/data-service-generator/base/parser"
 	"stellarsky.ai/platform/codegen/data-service-generator/config"
 	"stellarsky.ai/platform/codegen/data-service-generator/constructs/golang"
 	datahelpers "stellarsky.ai/platform/codegen/data-service-generator/db/generator/data-helpers"
@@ -50,7 +48,7 @@ func Generate(config defs.ModelConfig) error {
 
 }
 
-func readTypeValidations(attributeId int64) (string, *golang.GoType, []*models.Validation, error) {
+func readTypeAndValidations(attributeId int64) (string, *golang.GoType, []*models.Validation, error) {
 	attribute, ok := config.Attributes[attributeId]
 	if !ok {
 		return "", nil, nil, fmt.Errorf("attribute %d not found", attributeId)
@@ -79,7 +77,7 @@ func generateModel(config *defs.ModelConfig) ([]*golang.Struct, []*golang.Functi
 	modelFields := make([]*golang.Field, 0, 1)
 	titleCaser := cases.Title(language.English)
 	for _, attribute := range config.Model.Attributes {
-		attrName, goType, _, err := readTypeValidations(attribute)
+		attrName, goType, _, err := readTypeAndValidations(attribute)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -116,16 +114,64 @@ func GenerateV2(config defs.ModelConfig) error {
 	// GenerateDeleteConfigs(deleteConfigs)
 	// }
 
+	allQueries := make(map[string]string)
+	allFunctions := make([]*golang.Function, 0)
+	allStructs := make([]*golang.Struct, 0)
+
 	models, fns, err := generateModel(&config)
 	if err != nil {
 		return err
 	}
+	allStructs = append(allStructs, models...)
+	allFunctions = append(allFunctions, fns...)
 
-	GenerateFindConfigs(strings.Title(config.Model.Name), config.Access.Find)
+	caser := cases.Title(language.English)
+	modelName := caser.String(config.Model.Name)
+
+	queries, accessFns, structs, err := GenerateFindConfigs(modelName, config.Access.Find)
+	if err != nil {
+		return err
+	}
+	maps.Copy(allQueries, queries)
+	allFunctions = append(allFunctions, accessFns...)
+	allStructs = append(allStructs, structs...)
+
+	queries, accessFns, structs, err = GenerateUpdateConfigs(modelName, config.Access.Update)
+	if err != nil {
+		return err
+	}
+	maps.Copy(allQueries, queries)
+	allFunctions = append(allFunctions, accessFns...)
+	allStructs = append(allStructs, structs...)
+
+	queries, accessFns, structs, err = GenerateAddConfigs(modelName, config.Access.Add)
+	if err != nil {
+		return err
+	}
+	maps.Copy(allQueries, queries)
+	allFunctions = append(allFunctions, accessFns...)
+	allStructs = append(allStructs, structs...)
+
+	queries, accessFns, structs, err = GenerateAddOrReplaceConfigs(modelName, config.Access.AddOrReplace)
+	if err != nil {
+		return err
+	}
+	maps.Copy(allQueries, queries)
+	allFunctions = append(allFunctions, accessFns...)
+	allStructs = append(allStructs, structs...)
+
+	queries, accessFns, structs, err = GenerateDeleteConfigs(modelName, config.Access.Delete)
+	if err != nil {
+		return err
+	}
+	maps.Copy(allQueries, queries)
+	allFunctions = append(allFunctions, accessFns...)
+	allStructs = append(allStructs, structs...)
+
 	goSrc := golang.GoSourceFile{
 		Package:      "database",
-		Structs:      models,
-		Functions:    fns,
+		Structs:      allStructs,
+		Functions:    allFunctions,
 		InitFunction: nil,
 		Variables:    nil,
 		Constants:    nil}
@@ -135,38 +181,8 @@ func GenerateV2(config defs.ModelConfig) error {
 	}
 	fmt.Println("GenerateV2 Source code", srcCode, deps)
 	// base.LOG.Info("Source code", "source", goSrc.SourceCode())
-	GenerateFindConfigs(strings.Title(config.Model.Name), config.Access.Find)
 
 	return nil
-}
-
-func generateContextDBFunction(data any, codeTmpl *template.Template, modelName string, name string) (*golang.Function, error) {
-	buff := new(bytes.Buffer)
-	err := codeTmpl.Execute(buff, data)
-	if err != nil {
-		return nil, err
-	}
-
-	fnCodeElems, err := parser.StringToYaml[golang.CodeElement](buff.String())
-	if err != nil {
-		return nil, err
-	}
-	fn := &golang.Function{
-		Name: name,
-		Parameters: []*golang.Parameter{
-			{Name: "ctx", Type: golang.GoType{Name: "context.Context", Source: "context"}},
-			{Name: "db", Type: golang.GoType{Name: fmt.Sprintf("*%sDB", modelName)}},
-			{Name: "request", Type: golang.GoType{Name: fmt.Sprintf("*%sRequest", name)}},
-		},
-		Body: golang.CodeElements{fnCodeElems},
-		Returns: []*golang.Parameter{
-			{Type: golang.GoType{Name: fmt.Sprintf("*%sResponse", name)}, Name: "response"},
-			{Type: golang.GoType{Name: "error"}, Name: "err"},
-		},
-	}
-
-	fmt.Printf("Function code generated: %v\n", buff.String())
-	return fn, nil
 }
 
 func generateParamsStruct(paramRefs []defs.ParameterRef, name string) *golang.Struct {
@@ -188,96 +204,120 @@ func generateParamsStruct(paramRefs []defs.ParameterRef, name string) *golang.St
 	return paramsStruct
 }
 
-func GenerateFindConfigs(modelName string, findConfig []defs.AccessConfig) ([]*golang.Function, []*golang.Struct, error) {
-
-	readParamsTmpl, err := template.New("params").Parse(readParamsToValues)
-
-	if err != nil {
-		return nil, nil, err
+func generateRequestStruct(name string, paramStructName string) *golang.Struct {
+	return &golang.Struct{
+		Name: name,
+		Fields: []*golang.Field{
+			{Name: "Params", Type: golang.GoType{Name: paramStructName}, Tag: "json:\"params\""},
+		},
 	}
+}
+
+func generateAccessStructs(paramRef []defs.ParameterRef, name string) []*golang.Struct {
+	paramStruct := generateParamsStruct(paramRef, name)
+	reqStruct := generateRequestStruct(name, paramStruct.Name)
+	return []*golang.Struct{paramStruct, reqStruct}
+}
+
+func GenerateFindConfigs(modelName string, findConfig []defs.AccessConfig) (map[string]string, []*golang.Function, []*golang.Struct, error) {
 
 	functions := make([]*golang.Function, 0, len(findConfig))
 	reqs := make([]*golang.Struct, 0, len(findConfig))
+	queries := make(map[string]string)
 
-	for _, findConf := range findConfig {
+	for _, conf := range findConfig {
 
-		query, paramRefs := datahelpers.MakeFindQuery(modelName, &findConf)
-		paramsStruct := generateParamsStruct(paramRefs, findConf.Name)
+		query, paramRefs := datahelpers.MakeFindQuery(modelName, &conf)
+		queries[conf.Name] = query
+		accessStructs := generateAccessStructs(paramRefs, conf.Name)
+		reqs = append(reqs, accessStructs...)
 
-		fmt.Println("query", query)
-		req := &golang.Struct{
-			Name: fmt.Sprintf("%sRequest", findConf.Name),
-			Fields: []*golang.Field{
-				{Name: "Params", Type: golang.GoType{Name: paramsStruct.Name}, Tag: "json:\"params\""},
-			},
-		}
-
-		reqs = append(reqs, paramsStruct)
-		reqs = append(reqs, req)
-
-		fn := FindCodeFunction(modelName, findConf.Name, findConf.Attributes)
-
-		functions = append(functions, fn)
-
-		paramsData := struct {
-			ParameterRefs []defs.ParameterRef
-		}{
-			ParameterRefs: paramRefs,
-		}
-		readParamsCode := new(bytes.Buffer)
-		err = readParamsTmpl.Execute(readParamsCode, paramsData)
-		if err != nil {
-			return functions, reqs, err
-		}
-
-		paramFn := ReadParamsFunction(paramRefs, findConf.Name, "values", "request")
+		paramFn := ReadParamsFunction(paramRefs, conf.Name, "values", "params")
 		functions = append(functions, paramFn)
-		fmt.Println(readParamsCode.String())
+
+		fn := FindCodeFunction(modelName, conf.Name, conf.Attributes)
+		functions = append(functions, fn)
 	}
 
-	return functions, reqs, nil
+	return queries, functions, reqs, nil
 
 }
 
-func GenerateUpdateConfigs(modelName string, updateConfig []defs.AccessConfig) ([]*golang.Function, error) {
-	template, err := template.New("update").Funcs(template.FuncMap{
-		"Args":                Args,
-		"Join":                Join,
-		"AttributeNames":      AttributeNames,
-		"AttributeValues":     AttributeValues,
-		"SetClause":           SetClause,
-		"ScanArgs":            ScanArgs,
-		"ApplyTransformation": ApplyTransformation,
-	}).Parse(updateTemplate)
-
-	if err != nil {
-		return nil, err
-	}
+func GenerateUpdateConfigs(modelName string, updateConfig []defs.AccessConfig) (map[string]string, []*golang.Function, []*golang.Struct, error) {
 
 	functions := make([]*golang.Function, 0, len(updateConfig))
-	for _, updateConf := range updateConfig {
+	reqs := make([]*golang.Struct, 0, len(updateConfig))
+	queries := make(map[string]string)
 
-		data := struct {
-			Name           string
-			ScanAttributes string
-			ModelName      string
-		}{
-			ModelName:      modelName,
-			Name:           updateConf.Name,
-			ScanAttributes: ScanArgs(updateConf.Attributes),
-		}
+	for _, conf := range updateConfig {
 
-		buff := new(bytes.Buffer)
-		err := template.Execute(buff, data)
-		if err != nil {
-			return nil, err
-		}
-		fn := UpdateCodeFunction(updateConf.Name)
+		query, paramRefs := datahelpers.MakeUpdateQuery(modelName, &conf)
+		queries[conf.Name] = query
 
+		accessStructs := generateAccessStructs(paramRefs, conf.Name)
+		reqs = append(reqs, accessStructs...)
+		paramFn := ReadParamsFunction(paramRefs, conf.Name, "values", "params")
+		functions = append(functions, paramFn)
+
+		fn := UpdateCodeFunction(conf.Name)
 		functions = append(functions, fn)
-		fmt.Println(buff.String())
-
 	}
 
-	return functions, nil
+	return queries, functions, reqs, nil
+
+}
+
+func GenerateAddConfigs(modelName string, addConfig []defs.AccessConfig) (map[string]string, []*golang.Function, []*golang.Struct, error) {
+	functions := make([]*golang.Function, 0, len(addConfig))
+	reqs := make([]*golang.Struct, 0, len(addConfig))
+	queries := make(map[string]string)
+
+	for _, conf := range addConfig {
+		query, paramRefs := datahelpers.MakeAddQuery(modelName, &conf)
+		queries[conf.Name] = query
+		accessStructs := generateAccessStructs(paramRefs, conf.Name)
+		reqs = append(reqs, accessStructs...)
+		paramFn := ReadParamsFunction(paramRefs, conf.Name, "values", "params")
+		functions = append(functions, paramFn)
+		fn := AddCodeFunction(conf.Name)
+		functions = append(functions, fn)
+	}
+	return queries, functions, reqs, nil
+
+}
+
+func GenerateAddOrReplaceConfigs(modelName string, addOrReplaceConfig []defs.AccessConfig) (map[string]string, []*golang.Function, []*golang.Struct, error) {
+	functions := make([]*golang.Function, 0, len(addOrReplaceConfig))
+	reqs := make([]*golang.Struct, 0, len(addOrReplaceConfig))
+	queries := make(map[string]string)
+
+	for _, conf := range addOrReplaceConfig {
+		query, paramRefs := datahelpers.MakeAddOrReplaceQuery(modelName, &conf)
+		queries[conf.Name] = query
+		accessStructs := generateAccessStructs(paramRefs, conf.Name)
+		reqs = append(reqs, accessStructs...)
+		paramFn := ReadParamsFunction(paramRefs, conf.Name, "values", "params")
+		functions = append(functions, paramFn)
+		fn := AddOrReplaceCodeFunction(conf.Name)
+		functions = append(functions, fn)
+	}
+	return queries, functions, reqs, nil
+}
+
+func GenerateDeleteConfigs(modelName string, deleteConfig []defs.AccessConfig) (map[string]string, []*golang.Function, []*golang.Struct, error) {
+	functions := make([]*golang.Function, 0, len(deleteConfig))
+	reqs := make([]*golang.Struct, 0, len(deleteConfig))
+	queries := make(map[string]string)
+
+	for _, conf := range deleteConfig {
+		query, paramRefs := datahelpers.MakeDeleteQuery(modelName, &conf)
+		queries[conf.Name] = query
+		accessStructs := generateAccessStructs(paramRefs, conf.Name)
+		reqs = append(reqs, accessStructs...)
+		paramFn := ReadParamsFunction(paramRefs, conf.Name, "values", "params")
+		functions = append(functions, paramFn)
+		fn := DeleteCodeFunction(conf.Name)
+		functions = append(functions, fn)
+	}
+	return queries, functions, reqs, nil
 }

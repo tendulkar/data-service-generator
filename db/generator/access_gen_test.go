@@ -1,7 +1,6 @@
 package generator
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -44,7 +43,7 @@ func TestGenerateFindConfigs(t *testing.T) {
 		Functions: functions,
 	}
 	code, deps, _ := sourceFile.SourceCode()
-	fmt.Println("TestGenerateFindConfigs Code:", code, "Dependencies:", deps)
+	t.Log("TestGenerateFindConfigs Code:", code, "Dependencies:", deps)
 	// Add more assertions as needed to validate the output
 }
 
