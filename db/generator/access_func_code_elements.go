@@ -437,3 +437,50 @@ func ReadParamsFunction(paramRefs []defs.ParameterRef, confName string,
 
 	return fn
 }
+
+func makeNewMapCE(name string, mapType string) *golang.FunctionCall {
+	return &golang.FunctionCall{
+		NewOutput: name,
+		Function:  "make",
+		Args:      []string{mapType},
+	}
+}
+
+func makeNewArrayCE(name string, arrayType string) *golang.CodeElement {
+	return &golang.CodeElement{
+		Variable: createVarCE(name, arrayType),
+	}
+}
+
+func prepareStmtCE(dbVar string, query string, stmtVar string, returnParams []*golang.Parameter) *golang.CodeElement {
+	return &golang.CodeElement{
+		FunctionCall: &golang.FunctionCall{
+			Receiver: dbVar,
+			Function: "Prepare",
+			Args:     []string{query},
+			Output:   []string{stmtVar, "err"},
+			ErrorHandler: golang.ErrorHandler{
+				ErrorFunctionReturns: returnParams,
+			},
+		},
+	}
+}
+
+func PrepareStmtFunction(queries map[string]string) *golang.Function {
+	returnFn := typeOnlyParamsCE("map[string]*sql.Stmt", "error")
+	body := golang.CodeElements{
+		{
+			FunctionCall: makeNewMapCE("preparedCache", "map[string]*sql.Stmt"),
+		},
+	}
+
+	for name, query := range queries {
+		body = append(body, &golang.CodeElement{
+			MapLookup: lookupStmtCE(name, "db", "preparedCache", "stmt"),
+		})
+		body = append(body, &golang.CodeElement{
+			FunctionCall: prepareStmtCE("db", query, name, "stmt"),
+		})
+	}
+
+}

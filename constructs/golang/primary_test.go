@@ -6,6 +6,128 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+func TestLiteral_ToCode(t *testing.T) {
+	// Test case: int literal
+	literal := &Literal{
+		Type:  "int",
+		Value: "123",
+	}
+	expected := "123"
+	if result := literal.ToCode(); result != expected {
+		t.Errorf("ToCode() = %v, want %v", result, expected)
+	}
+
+	arrayIndexLiteral := &Literal{
+		Value: "c",
+		Indexes: &Literal{
+			Value: 1,
+		},
+	}
+	expected = "c[1]"
+	if result := arrayIndexLiteral.ToCode(); result != expected {
+		t.Errorf("ToCode() = %v, want %v", result, expected)
+	}
+
+	arrayIndexLiteral2 := &Literal{
+		Value:   "c",
+		Indexes: 2,
+	}
+	expected = `c[2]`
+	if result := arrayIndexLiteral2.ToCode(); result != expected {
+		t.Errorf("ToCode() = %v, want %v", result, expected)
+	}
+
+	mapIndexLiteral := &Literal{
+		Value: "c",
+		Indexes: &Literal{
+			Value: "a",
+		},
+	}
+	expected = `c["a"]`
+	if result := mapIndexLiteral.ToCode(); result != expected {
+		t.Errorf("ToCode() = %v, want %v", result, expected)
+	}
+
+	mapIndexLiteral2 := &Literal{
+		Value:   "c",
+		Indexes: "a",
+	}
+	expected = `c["a"]`
+	if result := mapIndexLiteral2.ToCode(); result != expected {
+		t.Errorf("ToCode() = %v, want %v", result, expected)
+	}
+
+	nestedMapLiteral := &Literal{
+		Value: "c",
+		Indexes: &Literal{
+			Value: "a",
+			Indexes: &Literal{
+				Value: "b",
+			},
+		},
+	}
+
+	expected = `c[a["b"]]`
+	if result := nestedMapLiteral.ToCode(); result != expected {
+		t.Errorf("ToCode() = %v, want %v", result, expected)
+	}
+
+	nestedArrayLiteral := &Literal{
+		Value: "c",
+		Indexes: &Literal{
+			Value: "a",
+			Indexes: &Literal{
+				Value: 2,
+			},
+		},
+	}
+
+	expected = `c[a[2]]`
+	if result := nestedArrayLiteral.ToCode(); result != expected {
+		t.Errorf("ToCode() = %v, want %v", result, expected)
+	}
+
+	array3DIndexLiteral := &Literal{
+		Value: "c",
+		Indexes: []*Literal{
+			{
+				Value: 1,
+			},
+			{
+				Value: 2,
+			},
+			{
+				Value: 3,
+			},
+		},
+	}
+
+	expected = `c[1][2][3]`
+	if result := array3DIndexLiteral.ToCode(); result != expected {
+		t.Errorf("ToCode() = %v, want %v", result, expected)
+	}
+
+	map3DIndexLiteral := &Literal{
+		Value: "c",
+		Indexes: []*Literal{
+			{
+				Value: "a",
+			},
+			{
+				Value: "b",
+			},
+			{
+				Value: "c",
+			},
+		},
+	}
+
+	expected = `c["a"]["b"]["c"]`
+	if result := map3DIndexLiteral.ToCode(); result != expected {
+		t.Errorf("ToCode() = %v, want %v", result, expected)
+	}
+}
+
 func TestCodeElement_ToCode(t *testing.T) {
 	// Test case: Arithmetic operation
 	ce := &CodeElement{

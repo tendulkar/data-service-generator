@@ -320,8 +320,9 @@ type FunctionCall struct {
 }
 
 type Literal struct {
-	Value interface{} `yaml:"val"`
-	Type  string      `yaml:"type"`
+	Value   interface{} `yaml:"val"`
+	Type    string      `yaml:"type,omitempty"`
+	Indexes interface{} `yaml:"indexes,omitempty"`
 }
 
 type MapLookup struct {
@@ -628,13 +629,13 @@ func (vc *VariableCreate) ToCode() string {
 
 // Implementation of ToCode for each struct
 func (a *Assignment) ToCode() string {
-	leftSide := resolveStringOrArray(a.Left)
+	leftSide := resolveStringOrCodeElement(a.Left, ", ")
 	rightSide := resolveStringOrCodeElement(a.Right, ", ")
 	return fmt.Sprintf("%s = %s", leftSide, rightSide)
 }
 
 func (na *NewAssignment) ToCode() string {
-	leftSide := resolveStringOrArray(na.Left)
+	leftSide := resolveStringOrCodeElement(na.Left, ", ")
 	rightSide := resolveStringOrCodeElement(na.Right, ", ")
 	return fmt.Sprintf("%s := %s", leftSide, rightSide)
 }
@@ -770,29 +771,17 @@ func (dr *DeferRoutine) ToCode() string {
 	return fmt.Sprintf("defer %s()", dr.FunctionCall.ToCode())
 }
 
-func resolveStringOrArray(s interface{}) string {
-	base.LOG.Info("resolveStringOrArray with []string", "s", s, "type", fmt.Sprintf("%T", s))
-
-	switch v := s.(type) {
-	case []string:
-		return strings.Join(v, ", ")
-	case []interface{}:
-		return resolveArrayInterface(v, ", ")
-	default:
-		return fmt.Sprintf("%v", v)
-	}
-}
-
 func resolveOutputs(output, newOutput interface{}) string {
 	if output == nil && newOutput == nil {
 		return ""
 	}
 
+	// output or newOutput could be literal like array/map index, so resolveStringOrCdoeElement will do that
 	if output != nil {
-		return fmt.Sprintf("%s = ", resolveStringOrArray(output))
+		return fmt.Sprintf("%s = ", resolveStringOrCodeElement(output, ", "))
 	}
 
-	return fmt.Sprintf("%s := ", resolveStringOrArray(newOutput))
+	return fmt.Sprintf("%s := ", resolveStringOrCodeElement(newOutput, ", "))
 }
 
 func findZeroValues(params []*Parameter, errName string) []string {
@@ -839,6 +828,18 @@ func (fc *FunctionCall) ToCode() string {
 }
 
 func (l *Literal) ToCode() string {
+	if l.Indexes != nil {
+		indicesCode := []string{}
+		if reflect.TypeOf(l.Indexes).Kind() == reflect.Slice {
+			for _, index := range l.Indexes.([]*Literal) {
+				indicesCode = append(indicesCode, fmt.Sprintf("[%s]", resolveLiteral(index)))
+			}
+		} else {
+			indicesCode = append(indicesCode, fmt.Sprintf("[%s]", resolveLiteral(l.Indexes)))
+		}
+
+		return fmt.Sprintf("%s%s", resolveStringOrCodeElement(l.Value, ", "), strings.Join(indicesCode, ""))
+	}
 	if l.Type == "" {
 		return resolveLiteral(l.Value)
 	} else {

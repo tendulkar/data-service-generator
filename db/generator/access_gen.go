@@ -100,19 +100,7 @@ func generateModel(config *defs.ModelConfig) ([]*golang.Struct, []*golang.Functi
 
 }
 
-func GenerateV2(config defs.ModelConfig) error {
-	// for i := 0; i < len(conf); i++ {
-	// findConfigs := config.Access[i].Find
-	// updateConfigs := config.Access[i].Update
-	// addConfigs := config.Access[i].Add
-	// addOrReplaceConfigs := config.Access[i].AddOrReplace
-	// deleteConfigs := config.Access[i].Delete
-	// GenerateFindConfigs(findConfigs)
-	// GenerateUpdateConfigs(updateConfigs)
-	// GenerateAddConfigs(addConfigs)
-	// GenerateAddOrReplaceConfigs(addOrReplaceConfigs)
-	// GenerateDeleteConfigs(deleteConfigs)
-	// }
+func GenerateV2(config defs.ModelConfig) (*golang.GoSourceFile, error) {
 
 	allQueries := make(map[string]string)
 	allFunctions := make([]*golang.Function, 0)
@@ -120,7 +108,7 @@ func GenerateV2(config defs.ModelConfig) error {
 
 	models, fns, err := generateModel(&config)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	allStructs = append(allStructs, models...)
 	allFunctions = append(allFunctions, fns...)
@@ -130,7 +118,7 @@ func GenerateV2(config defs.ModelConfig) error {
 
 	queries, accessFns, structs, err := GenerateFindConfigs(modelName, config.Access.Find)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	maps.Copy(allQueries, queries)
 	allFunctions = append(allFunctions, accessFns...)
@@ -138,7 +126,7 @@ func GenerateV2(config defs.ModelConfig) error {
 
 	queries, accessFns, structs, err = GenerateUpdateConfigs(modelName, config.Access.Update)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	maps.Copy(allQueries, queries)
 	allFunctions = append(allFunctions, accessFns...)
@@ -146,7 +134,7 @@ func GenerateV2(config defs.ModelConfig) error {
 
 	queries, accessFns, structs, err = GenerateAddConfigs(modelName, config.Access.Add)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	maps.Copy(allQueries, queries)
 	allFunctions = append(allFunctions, accessFns...)
@@ -154,7 +142,7 @@ func GenerateV2(config defs.ModelConfig) error {
 
 	queries, accessFns, structs, err = GenerateAddOrReplaceConfigs(modelName, config.Access.AddOrReplace)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	maps.Copy(allQueries, queries)
 	allFunctions = append(allFunctions, accessFns...)
@@ -162,27 +150,21 @@ func GenerateV2(config defs.ModelConfig) error {
 
 	queries, accessFns, structs, err = GenerateDeleteConfigs(modelName, config.Access.Delete)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	maps.Copy(allQueries, queries)
 	allFunctions = append(allFunctions, accessFns...)
 	allStructs = append(allStructs, structs...)
 
-	goSrc := golang.GoSourceFile{
+	goSrc := &golang.GoSourceFile{
 		Package:      "database",
 		Structs:      allStructs,
 		Functions:    allFunctions,
 		InitFunction: nil,
 		Variables:    nil,
 		Constants:    nil}
-	srcCode, deps, err := goSrc.SourceCode()
-	if err != nil {
-		return err
-	}
-	fmt.Println("GenerateV2 Source code", srcCode, deps)
-	// base.LOG.Info("Source code", "source", goSrc.SourceCode())
 
-	return nil
+	return goSrc, nil
 }
 
 func generateParamsStruct(paramRefs []defs.ParameterRef, name string) *golang.Struct {
@@ -206,7 +188,7 @@ func generateParamsStruct(paramRefs []defs.ParameterRef, name string) *golang.St
 
 func generateRequestStruct(name string, paramStructName string) *golang.Struct {
 	return &golang.Struct{
-		Name: name,
+		Name: fmt.Sprintf("%sRequest", name),
 		Fields: []*golang.Field{
 			{Name: "Params", Type: golang.GoType{Name: paramStructName}, Tag: "json:\"params\""},
 		},

@@ -32,8 +32,9 @@ func TestGenerateFindConfigs(t *testing.T) {
 		},
 	}
 
-	functions, structs, err := GenerateFindConfigs("Product", findConfigs)
+	queries, functions, structs, err := GenerateFindConfigs("Product", findConfigs)
 	assert.NoError(t, err)
+	assert.NotNil(t, queries)
 	assert.NotNil(t, functions)
 	assert.NotNil(t, structs)
 
@@ -43,7 +44,7 @@ func TestGenerateFindConfigs(t *testing.T) {
 		Functions: functions,
 	}
 	code, deps, _ := sourceFile.SourceCode()
-	t.Log("TestGenerateFindConfigs Code:", code, "Dependencies:", deps)
+	t.Log("TestGenerateFindConfigs Code:", code, "Dependencies:", deps, "Imports:", sourceFile.Imports, "queries:", queries)
 	// Add more assertions as needed to validate the output
 }
 
@@ -127,9 +128,11 @@ func TestGenerateV2_Success(t *testing.T) {
 	}
 
 	config.LoadConfig()
-	err := GenerateV2(cfg)
+	goSrc, err := GenerateV2(cfg)
+	t.Log(goSrc.SourceCode())
 
 	assert.NoError(t, err)
+	assert.NotNil(t, goSrc)
 }
 
 func TestGenerateV2_ErrorCase(t *testing.T) {
@@ -138,9 +141,10 @@ func TestGenerateV2_ErrorCase(t *testing.T) {
 		// Populate the necessary fields for testing the error case
 	}
 
-	err := GenerateV2(config)
+	goSrc, err := GenerateV2(config)
 
 	assert.Error(t, err)
+	assert.Nil(t, goSrc)
 	// You can add more specific assertions based on the expected error behavior
 }
 
