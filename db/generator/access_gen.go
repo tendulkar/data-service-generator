@@ -2,8 +2,6 @@ package generator
 
 import (
 	"fmt"
-	"os"
-	"text/template"
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -14,38 +12,6 @@ import (
 	"stellarsky.ai/platform/codegen/data-service-generator/db/generator/defs"
 	"stellarsky.ai/platform/codegen/data-service-generator/db/models"
 )
-
-func Generate(config defs.ModelConfig) error {
-	tmpl, err := template.New("model").Funcs(template.FuncMap{
-		"Args": Args,
-		"Join": Join,
-		// "WhereClause":         WhereClause,
-		"AttributeNames":      AttributeNames,
-		"AttributeValues":     AttributeValues,
-		"SetClause":           SetClause,
-		"ScanArgs":            ScanArgs,
-		"ApplyTransformation": ApplyTransformation,
-	}).Parse(modelTemplate)
-	if err != nil {
-		return err
-	}
-
-	// Create output file
-	file, err := os.Create(fmt.Sprintf("generated/%s_gen.go", config.Model.Name))
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	// Execute template with config data
-	err = tmpl.Execute(file, config)
-	if err != nil {
-		return err
-	}
-
-	return nil
-
-}
 
 func readTypeAndValidations(attributeId int64) (string, *golang.GoType, []*models.Validation, error) {
 	attribute, ok := config.Attributes[attributeId]
@@ -92,7 +58,7 @@ func generateModel(config *defs.ModelConfig) ([]*golang.Struct, []*golang.Functi
 	return models, functions, nil
 }
 
-func GenerateV2(config defs.ModelConfig) (*golang.GoSourceFile, error) {
+func Generate(config defs.ModelConfig) (*golang.GoSourceFile, error) {
 
 	allQueries := make([]NamedQuery, 0)
 	allFunctions := make([]*golang.Function, 0)
