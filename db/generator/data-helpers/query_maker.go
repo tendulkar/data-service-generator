@@ -5,14 +5,15 @@ import (
 	"strings"
 
 	"stellarsky.ai/platform/codegen/data-service-generator/base"
+	"stellarsky.ai/platform/codegen/data-service-generator/constructs/golang"
 	"stellarsky.ai/platform/codegen/data-service-generator/db/generator/defs"
 )
 
 func applyTransformation(attribute string, transformation string) string {
 	if transformation == "" {
-		return attribute
+		return golang.ToSnakeCase(attribute)
 	}
-	return fmt.Sprintf("%s(%s)", transformation, attribute)
+	return fmt.Sprintf("%s(%s)", transformation, golang.ToSnakeCase(attribute))
 }
 
 func makePreparedCounter(counter *uint32) string {
@@ -74,7 +75,7 @@ func argsClause(updates []defs.Update, counter *uint32, paramsMap *[]defs.Parame
 func setClause(updates []defs.Update, counter *uint32, paramsMap *[]defs.ParameterRef) string {
 	var clauses []string
 	for _, update := range updates {
-		clauses = append(clauses, fmt.Sprintf("%s = $%d", update.Attribute, *counter))
+		clauses = append(clauses, fmt.Sprintf("%s = $%d", golang.ToSnakeCase(update.Attribute), *counter))
 		*paramsMap = append(*paramsMap, defs.ParameterRef{
 			Name:  update.ParamName,
 			Index: -1,
@@ -87,7 +88,8 @@ func setClause(updates []defs.Update, counter *uint32, paramsMap *[]defs.Paramet
 func autoincrementClause(attributes []string) string {
 	var clauses []string
 	for _, attribute := range attributes {
-		clauses = append(clauses, fmt.Sprintf("%s = %s + 1", attribute, attribute))
+		attr := golang.ToSnakeCase(attribute)
+		clauses = append(clauses, fmt.Sprintf("%s = %s + 1", attr, attr))
 	}
 	return strings.Join(clauses, ", ")
 }
@@ -95,7 +97,8 @@ func autoincrementClause(attributes []string) string {
 func captureTimestampClause(attributes []string) string {
 	var clauses []string
 	for _, attribute := range attributes {
-		clauses = append(clauses, fmt.Sprintf("%s = NOW()", attribute))
+		attr := golang.ToSnakeCase(attribute)
+		clauses = append(clauses, fmt.Sprintf("%s = NOW()", attr))
 	}
 	return strings.Join(clauses, ", ")
 }
@@ -177,36 +180,43 @@ func PrepareDeleteStmt(deleteConfig *defs.AccessConfig) (string, []defs.Paramete
 func MakeFindQuery(table string, accessConfig *defs.AccessConfig) (string, []defs.ParameterRef) {
 	filterClause, paramsMap := PrepareFilters(accessConfig.Filter)
 	whereClause := fmt.Sprintf("(1 = 1) AND %s", filterClause)
-	return fmt.Sprintf("SELECT %s FROM %s WHERE %s", strings.Join(accessConfig.Attributes, ", "), table, whereClause), paramsMap
+	attrClause := strings.Join(golang.ToSnakeCaseArray(accessConfig.Attributes), ", ")
+	base.LOG.Info("Making find query for", "table", table, "attributes", accessConfig.Attributes, "whereClause", whereClause, "paramsMap", paramsMap)
+	tableClause := golang.ToSnakeCase(table)
+	return fmt.Sprintf("SELECT %s FROM %s WHERE %s", attrClause, tableClause, whereClause), paramsMap
 }
 
 func MakeUpdateQuery(table string, updateConfig *defs.AccessConfig) (string, []defs.ParameterRef) {
 	setClause, filterClause, paramsMap := PrepareUpdateStmt(updateConfig)
 	whereClause := fmt.Sprintf("(1 = 1) AND %s", filterClause)
-	return fmt.Sprintf("UPDATE %s SET %s WHERE %s", table, setClause, whereClause), paramsMap
+	tableClause := golang.ToSnakeCase(table)
+	return fmt.Sprintf("UPDATE %s SET %s WHERE %s", tableClause, setClause, whereClause), paramsMap
 }
 
 func MakeAddQuery(table string, addConfig *defs.AccessConfig) (string, []defs.ParameterRef) {
 	insertClause, paramsMap := PrepareAddStmt(addConfig)
 	attributes := make([]string, 0, len(addConfig.Attributes))
 	for _, attr := range addConfig.Values {
-		attributes = append(attributes, attr.Attribute)
+		attributes = append(attributes, golang.ToSnakeCase(attr.Attribute))
 	}
-	return fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s) RETURNING id", table, strings.Join(attributes, ", "), insertClause), paramsMap
+	tableClause := golang.ToSnakeCase(table)
+	return fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s) RETURNING id", tableClause, strings.Join(attributes, ", "), insertClause), paramsMap
 }
 
 func MakeAddOrReplaceQuery(table string, addConfig *defs.AccessConfig) (string, []defs.ParameterRef) {
 	insertClause, setClause, paramsMap := PrepareAddOrReplaceStmt(addConfig)
 	attributes := make([]string, 0, len(addConfig.Attributes))
 	for _, attr := range addConfig.Values {
-		attributes = append(attributes, attr.Attribute)
+		attributes = append(attributes, golang.ToSnakeCase(attr.Attribute))
 	}
+	tableClause := golang.ToSnakeCase(table)
 	return fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s) ON CONFLICT DO UPDATE SET %s RETURNING id, (xmax = 0)",
-		table, strings.Join(attributes, ", "), insertClause, setClause), paramsMap
+		tableClause, strings.Join(attributes, ", "), insertClause, setClause), paramsMap
 }
 
 func MakeDeleteQuery(table string, deleteConfig *defs.AccessConfig) (string, []defs.ParameterRef) {
 	filterClause, paramsMap := PrepareDeleteStmt(deleteConfig)
 	whereClause := fmt.Sprintf("(1 = 1) AND %s", filterClause)
-	return fmt.Sprintf("DELETE FROM %s WHERE %s", table, whereClause), paramsMap
+	tableClause := golang.ToSnakeCase(table)
+	return fmt.Sprintf("DELETE FROM %s WHERE %s", tableClause, whereClause), paramsMap
 }

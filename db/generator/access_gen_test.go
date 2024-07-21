@@ -58,7 +58,8 @@ func TestGenerateV2_Success(t *testing.T) {
 		Access: defs.Access{
 			Find: []defs.AccessConfig{
 				{
-					Name: "GetProductByID",
+					Name:       "GetProductByID",
+					Attributes: []string{"id", "name", "price", "quantity"},
 					Filter: []defs.Filter{{
 						Attribute: "ID",
 						Operator:  "=",

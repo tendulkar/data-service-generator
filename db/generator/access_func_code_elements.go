@@ -139,7 +139,7 @@ func scanResultsCE(modelName string, attributes []string, resultsName string) *g
 func ctxParamCE(ctxName string) *golang.Parameter {
 	return &golang.Parameter{
 		Name: ctxName,
-		Type: golang.GoType{
+		Type: &golang.GoType{
 			Name: "context.Context",
 		},
 	}
@@ -148,7 +148,7 @@ func ctxParamCE(ctxName string) *golang.Parameter {
 func dbParamCE(dbName string) *golang.Parameter {
 	return &golang.Parameter{
 		Name: dbName,
-		Type: golang.GoType{
+		Type: &golang.GoType{
 			Name:   "*sql.DB",
 			Source: "database/sql",
 		},
@@ -158,7 +158,7 @@ func dbParamCE(dbName string) *golang.Parameter {
 func requestParamsCE(confName string, requestParamsName string) *golang.Parameter {
 	return &golang.Parameter{
 		Name: requestParamsName,
-		Type: golang.GoType{
+		Type: &golang.GoType{
 			Name: fmt.Sprintf("%sParams", confName),
 		},
 	}
@@ -182,7 +182,7 @@ func ctxDBRequestParamsCE(ctxName, dbName, name, requestParamsName string) []*go
 func errorParamCE(errorName string) *golang.Parameter {
 	return &golang.Parameter{
 		Name: errorName,
-		Type: golang.GoType{
+		Type: &golang.GoType{
 			Name: "error",
 		},
 	}
@@ -191,7 +191,7 @@ func errorParamCE(errorName string) *golang.Parameter {
 func resultsParamCE(modelName, resultsName, sourceName string) *golang.Parameter {
 	return &golang.Parameter{
 		Name: resultsName,
-		Type: golang.GoType{
+		Type: &golang.GoType{
 			Name:   fmt.Sprintf("[]%s", modelName),
 			Source: sourceName,
 		},
@@ -209,7 +209,7 @@ func typeOnlyParamsCE(types ...string) []*golang.Parameter {
 	params := make([]*golang.Parameter, 0, len(types))
 	for _, typ := range types {
 		params = append(params, &golang.Parameter{
-			Type: golang.GoType{
+			Type: &golang.GoType{
 				Name: typ,
 			},
 		})
@@ -419,7 +419,7 @@ func ReadParamsFunction(paramRefs []defs.ParameterRef, confName string,
 	fnParams := []*golang.Parameter{
 		{
 			Name: paramsName,
-			Type: golang.GoType{
+			Type: &golang.GoType{
 				Name: fmt.Sprintf("%sParams", confName),
 			},
 		},
@@ -452,35 +452,65 @@ func makeNewArrayCE(name string, arrayType string) *golang.CodeElement {
 	}
 }
 
-func prepareStmtCE(dbVar string, query string, stmtVar string, returnParams []*golang.Parameter) *golang.CodeElement {
-	return &golang.CodeElement{
-		FunctionCall: &golang.FunctionCall{
-			Receiver: dbVar,
-			Function: "Prepare",
-			Args:     []string{query},
-			Output:   []string{stmtVar, "err"},
-			ErrorHandler: golang.ErrorHandler{
-				ErrorFunctionReturns: returnParams,
-			},
+func prepareStmtCE(dbVar string, query string, mapName string, indexName string, returnParams []*golang.Parameter) *golang.FunctionCall {
+	return &golang.FunctionCall{
+		Receiver: dbVar,
+		Function: "Prepare",
+		Args:     []interface{}{&golang.Literal{Value: query}},
+		Output:   []interface{}{&golang.Literal{Value: mapName, Indexes: indexName}, "err"},
+		ErrorHandler: golang.ErrorHandler{
+			ErrorFunctionReturns: returnParams,
 		},
 	}
 }
 
-func PrepareStmtFunction(queries map[string]string) *golang.Function {
+type NamedQuery struct {
+	Name  string
+	Query string
+}
+
+func PrepareStmtFunction(modelName string, queries []NamedQuery) *golang.Function {
 	returnFn := typeOnlyParamsCE("map[string]*sql.Stmt", "error")
 	body := golang.CodeElements{
 		{
 			FunctionCall: makeNewMapCE("preparedCache", "map[string]*sql.Stmt"),
 		},
+		{
+			Variable: createVarCE("err", "error"),
+		},
 	}
 
-	for name, query := range queries {
+	for _, namedQuery := range queries {
 		body = append(body, &golang.CodeElement{
-			MapLookup: lookupStmtCE(name, "db", "preparedCache", "stmt"),
-		})
-		body = append(body, &golang.CodeElement{
-			FunctionCall: prepareStmtCE("db", query, name, "stmt"),
+			FunctionCall: prepareStmtCE("db", namedQuery.Query, "preparedCache", namedQuery.Name, returnFn),
 		})
 	}
+
+	body = append(body, returnResultNilCE("preparedCache"))
+
+	fnParams := []*golang.Parameter{
+		{
+			Name: "db",
+			Type: &golang.GoType{
+				Name: "*sql.DB",
+			},
+		},
+		{
+			Name: "queries",
+			Type: &golang.GoType{
+				Name: "map[string]string",
+			},
+		},
+	}
+
+	fnName := fmt.Sprintf("%sPrepareStmt", modelName)
+	fn := &golang.Function{
+		Name:         fnName,
+		Parameters:   fnParams,
+		Body:         body,
+		Returns:      returnFn,
+		Dependencies: nil,
+	}
+	return fn
 
 }

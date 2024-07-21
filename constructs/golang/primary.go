@@ -378,6 +378,7 @@ func resolveTypeLiteral(v interface{}, t string) string {
 }
 
 func resolveArrayInterface(arr []interface{}, sep string) string {
+	// base.LOG.Info("resolveArrayInterface", "array", arr)
 	values := make([]string, len(arr))
 	for i, v := range arr {
 		values[i] = resolveStringOrCodeElement(v, sep)
@@ -390,6 +391,7 @@ func resolveArrayInterface(arr []interface{}, sep string) string {
 // we don't want to write golag code, either quotes, or brackets for arrays, we just want the literal
 // This will be platform compatible
 func resolveLiteral(v interface{}) string {
+	// base.LOG.Info("resolveLiteral", "value", v)
 	switch rv := v.(type) {
 	case string:
 		return fmt.Sprintf("\"%s\"", rv)
@@ -543,6 +545,7 @@ func (p *PreDecrement) ToCode() string {
 }
 
 func resolveStringOrCodeElement(v interface{}, sep string) string {
+	// base.LOG.Info("resolveStringOrCodeElement", "value", v, "sep", sep)
 	switch rv := v.(type) {
 	case []interface{}:
 		return resolveArrayInterface(rv, sep)
@@ -551,7 +554,7 @@ func resolveStringOrCodeElement(v interface{}, sep string) string {
 	case string:
 		return rv
 	case *Literal:
-		return resolveLiteral(rv.Value)
+		return rv.ToCode()
 	case []*Literal:
 		codeParts := make([]string, len(rv))
 		for i, v := range rv {
@@ -801,7 +804,7 @@ func (fc *FunctionCall) ToCode() string {
 	leftSide := resolveOutputs(fc.Output, fc.NewOutput)
 	argsCode := resolveStringOrCodeElement(fc.Args, ", ")
 	fnName := fc.Function
-	base.LOG.Info("FunctionCall ToCode", "fc", *fc, "leftSide", leftSide, "params", argsCode)
+	// base.LOG.Info("FunctionCall ToCode", "fc", *fc, "leftSide", leftSide, "params", argsCode)
 	if fc.Receiver != "" {
 		fnName = fmt.Sprintf("%s.%s", fc.Receiver, fc.Function)
 	}

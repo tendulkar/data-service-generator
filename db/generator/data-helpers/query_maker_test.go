@@ -186,8 +186,8 @@ func TestPrepareUpdateStmt(t *testing.T) {
 		CaptureTimestamp: []string{"attribute7", "attribute8"},
 	}
 	setClause, whereClause, paramsMap = PrepareUpdateStmt(updateConfig)
-	expectedSetClause := "attribute3 = $1, attribute4 = $2, attribute5 = attribute5 + 1, attribute6 = attribute6 + 1, attribute7 = NOW(), attribute8 = NOW()"
-	expectedWhereClause := "(attribute1 = $3 AND attribute2 > $4)"
+	expectedSetClause := "attribute_3 = $1, attribute_4 = $2, attribute_5 = attribute_5 + 1, attribute_6 = attribute_6 + 1, attribute_7 = NOW(), attribute_8 = NOW()"
+	expectedWhereClause := "(attribute_1 = $3 AND attribute_2 > $4)"
 	expectedParamsMap := []defs.ParameterRef{
 		{
 			Name:  "param3",
@@ -242,7 +242,7 @@ func TestMakeAddQuery(t *testing.T) {
 	addConfig := &defs.AccessConfig{
 		Values: []defs.Update{{Attribute: "attr1", ParamName: "p1"}, {Attribute: "attr2", ParamName: "p2"}},
 	}
-	expectedQuery := "INSERT INTO test_table (attr1, attr2) VALUES ($1, $2) RETURNING id"
+	expectedQuery := "INSERT INTO test_table (attr_1, attr_2) VALUES ($1, $2) RETURNING id"
 	expectedParams := []defs.ParameterRef{{Name: "p1", Index: -1}, {Name: "p2", Index: -1}}
 
 	query, params := MakeAddQuery(table, addConfig)
@@ -255,7 +255,7 @@ func TestMakeAddOrReplaceQuery(t *testing.T) {
 	addConfig := &defs.AccessConfig{
 		Values: []defs.Update{{Attribute: "attr1", ParamName: "p1"}, {Attribute: "attr2", ParamName: "p2"}},
 	}
-	expectedQuery := "INSERT INTO test_table (attr1, attr2) VALUES ($1, $2) ON CONFLICT DO UPDATE SET attr1 = $3, attr2 = $4 RETURNING id, (xmax = 0)"
+	expectedQuery := "INSERT INTO test_table (attr_1, attr_2) VALUES ($1, $2) ON CONFLICT DO UPDATE SET attr_1 = $3, attr_2 = $4 RETURNING id, (xmax = 0)"
 	expectedParams := []defs.ParameterRef{{Name: "p1", Index: -1}, {Name: "p2", Index: -1}, {Name: "p1", Index: -1}, {Name: "p2", Index: -1}}
 
 	query, params := MakeAddOrReplaceQuery(table, addConfig)
@@ -279,7 +279,7 @@ func TestMakeDeleteQuery(t *testing.T) {
 			},
 		},
 	}
-	expectedQuery := "DELETE FROM test_table WHERE (1 = 1) AND (attr1 = $1 AND attr2 > $2)"
+	expectedQuery := "DELETE FROM test_table WHERE (1 = 1) AND (attr_1 = $1 AND attr_2 > $2)"
 	expectedParams := []defs.ParameterRef{{Name: "p1", Index: -1}, {Name: "p2", Index: -1}}
 
 	query, params := MakeDeleteQuery(table, deleteConfig)

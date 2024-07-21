@@ -16,22 +16,22 @@ func TestTranslateToGoType(t *testing.T) {
 	}{
 		{
 			"int16",
-			&GoInt16Type,
+			GoInt16Type,
 			"",
 		},
 		{
 			"float32",
-			&GoFloat32Type,
+			GoFloat32Type,
 			"",
 		},
 		{
 			"[]complex64",
-			&GoComplex64ArrayType,
+			GoComplex64ArrayType,
 			"",
 		},
 		{
 			"map[interface{}]interface{}",
-			&GoInterfaceInterfaceMapType,
+			GoInterfaceInterfaceMapType,
 			"",
 		},
 		{
@@ -61,9 +61,9 @@ func TestFunctionCodeGeneration(t *testing.T) {
 	f := Function{
 		Name: "Update",
 		Parameters: []*Parameter{
-			{Name: "data", Type: GoType{Name: "*Data", Source: "github.com/example/data"}},
+			{Name: "data", Type: &GoType{Name: "*Data", Source: "github.com/example/data"}},
 		},
-		Returns: []*Parameter{{Type: GoType{Name: "error", Source: ""}}},
+		Returns: []*Parameter{{Type: &GoType{Name: "error", Source: ""}}},
 		Body: CodeElements{{
 			Imports: []string{"github.com/example/data"},
 			FunctionCall: &FunctionCall{
@@ -76,7 +76,7 @@ func TestFunctionCodeGeneration(t *testing.T) {
 				Return: "nil",
 			},
 		},
-		Receiver: &Receiver{Name: "this", Type: GoType{Name: "Processor", Source: ""}},
+		Receiver: &Receiver{Name: "this", Type: &GoType{Name: "Processor", Source: ""}},
 	}
 
 	expectedImports := fmt.Sprintf("import (\n%s\"github.com/example/data\"\n)", Indent)
@@ -104,16 +104,16 @@ func TestStructCodeGeneration(t *testing.T) {
 	s := Struct{
 		Name: "Processor",
 		Fields: []*Field{
-			{Name: "Data", Type: GoType{Name: "Data", Source: "github.com/example/data"}},
-			{Name: "Logger", Type: GoType{Name: "Logger", Source: "github.com/sirupsen/logrus"}},
+			{Name: "Data", Type: &GoType{Name: "Data", Source: "github.com/example/data"}},
+			{Name: "Logger", Type: &GoType{Name: "Logger", Source: "github.com/sirupsen/logrus"}},
 		},
 		Functions: []*Function{
 			{
 				Name: "Process",
 				Parameters: []*Parameter{
-					{Name: "input", Type: GoType{Name: "[]byte", Source: ""}},
+					{Name: "input", Type: &GoType{Name: "[]byte", Source: ""}},
 				},
-				Returns: []*Parameter{{Type: GoType{Name: "error", Source: ""}}},
+				Returns: []*Parameter{{Type: &GoType{Name: "error", Source: ""}}},
 				Body: []*CodeElement{
 					{
 						FunctionCall: &FunctionCall{
@@ -129,7 +129,7 @@ func TestStructCodeGeneration(t *testing.T) {
 						Return: "nil",
 					},
 				},
-				Receiver: &Receiver{Name: "this", Type: GoType{Name: "Processor", Source: ""}},
+				Receiver: &Receiver{Name: "this", Type: &GoType{Name: "Processor", Source: ""}},
 			},
 		},
 	}
@@ -158,12 +158,12 @@ func TestGenerateGoFile(t *testing.T) {
 		{
 			Name: "Logger",
 			Fields: []*Field{
-				{Name: "Level", Type: GoType{Name: "int", Source: ""}},
+				{Name: "Level", Type: &GoType{Name: "int", Source: ""}},
 			},
 			Functions: []*Function{
 				{
 					Name:       "SetLevel",
-					Parameters: []*Parameter{{Name: "level", Type: GoType{Name: "int", Source: ""}}},
+					Parameters: []*Parameter{{Name: "level", Type: &GoType{Name: "int", Source: ""}}},
 					Returns:    []*Parameter{},
 					Body: []*CodeElement{
 						{
@@ -173,7 +173,7 @@ func TestGenerateGoFile(t *testing.T) {
 							},
 						},
 					},
-					Receiver: &Receiver{Name: "l", Type: GoType{Name: "Logger", Source: ""}},
+					Receiver: &Receiver{Name: "l", Type: &GoType{Name: "Logger", Source: ""}},
 				},
 			},
 		},
@@ -182,7 +182,7 @@ func TestGenerateGoFile(t *testing.T) {
 		{
 			Name:       "NewLogger",
 			Parameters: []*Parameter{},
-			Returns:    []*Parameter{{Type: GoType{Name: "*Logger", Source: ""}}},
+			Returns:    []*Parameter{{Type: &GoType{Name: "*Logger", Source: ""}}},
 			Body: []*CodeElement{
 				{
 					Return: &CodeElement{
@@ -193,10 +193,10 @@ func TestGenerateGoFile(t *testing.T) {
 		},
 	}
 	variables := []*Variable{
-		{Name: "defaultLogger", Type: GoType{Name: "*Logger"}, Value: "NewLogger()"},
+		{Name: "defaultLogger", Type: &GoType{Name: "*Logger"}, Value: "NewLogger()"},
 	}
 	constants := []*Constant{
-		{Name: "DefaultLevel", Type: GoType{Name: "int"}, Value: "1"},
+		{Name: "DefaultLevel", Type: &GoType{Name: "int"}, Value: "1"},
 	}
 	initFunction := CodeElements{
 		{

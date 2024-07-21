@@ -126,6 +126,29 @@ func TestLiteral_ToCode(t *testing.T) {
 	if result := map3DIndexLiteral.ToCode(); result != expected {
 		t.Errorf("ToCode() = %v, want %v", result, expected)
 	}
+
+	mapIndexSimple := &Literal{
+		Value:   "c",
+		Indexes: "a",
+	}
+	expected = `c["a"]`
+	if result := mapIndexSimple.ToCode(); result != expected {
+		t.Errorf("ToCode() = %v, want %v", result, expected)
+	}
+}
+
+func TestFunctionCall_ToCode(t *testing.T) {
+	// Test case: Simple function call
+	funcCall := &FunctionCall{
+		Receiver: "foo",
+		Function: "FnName",
+		Args:     []string{"a", "b"},
+		Output:   []interface{}{&Literal{Value: "c", Indexes: "one"}, "err"},
+	}
+	expected := `c["one"], err = foo.FnName(a, b)`
+	if result := funcCall.ToCode(); result != expected {
+		t.Errorf("ToCode() = %v, want %v", result, expected)
+	}
 }
 
 func TestCodeElement_ToCode(t *testing.T) {

@@ -209,3 +209,44 @@ func TestReadParamsFunction(t *testing.T) {
 	// Assert the expected output
 	// assert.Equal(t, resultFunction, expectedFunction)
 }
+
+func TestPrepareStmtFunction(t *testing.T) {
+	queries := []NamedQuery{
+		{"query1", "SELECT * FROM table1 WHERE id = $1 AND name = $2"},
+		{"query2", "INSERT INTO table2 (id, name, age) VALUES ($1, $2, $3)"},
+		{"query3", "UPDATE table3 SET name = $1, age = $2 WHERE id = $3"},
+		{"query4", "DELETE FROM table4 WHERE id = $1"},
+		{"query5", "SELECT * FROM table5"},
+	}
+
+	expectedCode := `func UserPrepareStmt(db *sql.DB, queries map[string]string) (map[string]*sql.Stmt, error) {
+	preparedCache := make(map[string]*sql.Stmt)
+	var err error
+	preparedCache["query1"], err = db.Prepare("SELECT * FROM table1 WHERE id = $1 AND name = $2")
+	if err != nil {
+		return nil, err
+	}
+	preparedCache["query2"], err = db.Prepare("INSERT INTO table2 (id, name, age) VALUES ($1, $2, $3)")
+	if err != nil {
+		return nil, err
+	}
+	preparedCache["query3"], err = db.Prepare("UPDATE table3 SET name = $1, age = $2 WHERE id = $3")
+	if err != nil {
+		return nil, err
+	}
+	preparedCache["query4"], err = db.Prepare("DELETE FROM table4 WHERE id = $1")
+	if err != nil {
+		return nil, err
+	}
+	preparedCache["query5"], err = db.Prepare("SELECT * FROM table5")
+	if err != nil {
+		return nil, err
+	}
+	return preparedCache, nil
+}`
+
+	actual := PrepareStmtFunction("User", queries)
+	actualCode, _ := actual.FunctionCode()
+	t.Log(actualCode)
+	assert.Equal(t, expectedCode, actualCode)
+}

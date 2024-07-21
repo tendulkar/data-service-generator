@@ -2,7 +2,6 @@ package generator
 
 import (
 	"fmt"
-	"maps"
 	"os"
 	"text/template"
 
@@ -63,7 +62,7 @@ func readTypeAndValidations(attributeId int64) (string, *golang.GoType, []*model
 	if err != nil {
 		return "", nil, nil, err
 	}
-	base.LOG.Info("ReadTypeValidations", "goType", goType, "validationIds", validationIds,
+	base.LOG.Info("ReadTypeValidations", "goType", goType, "validationIds", validationIds, "attribute", attribute,
 		"attributeId", attributeId, "typeId", typeId, "postgresType", postgresType, "goTypeStr", goTypeStr)
 	validations := datahelpers.GetValidations(validationIds)
 	return attribute.Name, goType, validations, nil
@@ -74,35 +73,28 @@ func generateModel(config *defs.ModelConfig) ([]*golang.Struct, []*golang.Functi
 	models := make([]*golang.Struct, 0, 1)
 	functions := make([]*golang.Function, 0, 1)
 
-	modelFields := make([]*golang.Field, 0, 1)
-	titleCaser := cases.Title(language.English)
+	nameWithTypes := make([]golang.NameWithType, 0, 1)
 	for _, attribute := range config.Model.Attributes {
 		attrName, goType, _, err := readTypeAndValidations(attribute)
 		if err != nil {
 			return nil, nil, err
 		}
 		base.LOG.Info("Attribute", "attrName", attrName, "goType", goType)
-		modelFields = append(modelFields, &golang.Field{
-			Name: titleCaser.String(attrName),
-			Type: *goType,
-			Tag:  fmt.Sprintf(`json:"%s"`, attrName),
+
+		nameWithTypes = append(nameWithTypes, golang.NameWithType{
+			Name: attrName,
+			Type: goType,
 		})
 	}
 
-	modelStruct := &golang.Struct{
-		Name:   fmt.Sprintf("%sModel", config.Model.Name),
-		Fields: modelFields,
-	}
-
+	modelStruct := golang.GenerateStructForJSON(config.Model.Name, nameWithTypes)
 	models = append(models, modelStruct)
-
 	return models, functions, nil
-
 }
 
 func GenerateV2(config defs.ModelConfig) (*golang.GoSourceFile, error) {
 
-	allQueries := make(map[string]string)
+	allQueries := make([]NamedQuery, 0)
 	allFunctions := make([]*golang.Function, 0)
 	allStructs := make([]*golang.Struct, 0)
 
@@ -120,7 +112,7 @@ func GenerateV2(config defs.ModelConfig) (*golang.GoSourceFile, error) {
 	if err != nil {
 		return nil, err
 	}
-	maps.Copy(allQueries, queries)
+	allQueries = append(allQueries, queries...)
 	allFunctions = append(allFunctions, accessFns...)
 	allStructs = append(allStructs, structs...)
 
@@ -128,7 +120,7 @@ func GenerateV2(config defs.ModelConfig) (*golang.GoSourceFile, error) {
 	if err != nil {
 		return nil, err
 	}
-	maps.Copy(allQueries, queries)
+	allQueries = append(allQueries, queries...)
 	allFunctions = append(allFunctions, accessFns...)
 	allStructs = append(allStructs, structs...)
 
@@ -136,7 +128,7 @@ func GenerateV2(config defs.ModelConfig) (*golang.GoSourceFile, error) {
 	if err != nil {
 		return nil, err
 	}
-	maps.Copy(allQueries, queries)
+	allQueries = append(allQueries, queries...)
 	allFunctions = append(allFunctions, accessFns...)
 	allStructs = append(allStructs, structs...)
 
@@ -144,7 +136,7 @@ func GenerateV2(config defs.ModelConfig) (*golang.GoSourceFile, error) {
 	if err != nil {
 		return nil, err
 	}
-	maps.Copy(allQueries, queries)
+	allQueries = append(allQueries, queries...)
 	allFunctions = append(allFunctions, accessFns...)
 	allStructs = append(allStructs, structs...)
 
@@ -152,10 +144,12 @@ func GenerateV2(config defs.ModelConfig) (*golang.GoSourceFile, error) {
 	if err != nil {
 		return nil, err
 	}
-	maps.Copy(allQueries, queries)
+	allQueries = append(allQueries, queries...)
 	allFunctions = append(allFunctions, accessFns...)
 	allStructs = append(allStructs, structs...)
 
+	prepareFn := PrepareStmtFunction(modelName, allQueries)
+	allFunctions = append(allFunctions, prepareFn)
 	goSrc := &golang.GoSourceFile{
 		Package:      "database",
 		Structs:      allStructs,
@@ -168,31 +162,22 @@ func GenerateV2(config defs.ModelConfig) (*golang.GoSourceFile, error) {
 }
 
 func generateParamsStruct(paramRefs []defs.ParameterRef, name string) *golang.Struct {
-
-	paramFileds := make([]*golang.Field, 0, len(paramRefs))
+	nameWithTypes := make([]golang.NameWithType, 0, len(paramRefs))
 	for _, param := range paramRefs {
-		paramFileds = append(paramFileds, &golang.Field{
+		nameWithTypes = append(nameWithTypes, golang.NameWithType{
 			Name: param.Name,
 			Type: golang.GoInterfaceType,
-			Tag:  fmt.Sprintf(`json:"%s"`, param.Name),
 		})
 	}
 
-	paramsStruct := &golang.Struct{
-		Name:   fmt.Sprintf("%sParams", name),
-		Fields: paramFileds,
-	}
-
-	return paramsStruct
+	return golang.GenerateStructForJSON(fmt.Sprintf("%sParams", name), nameWithTypes)
 }
 
 func generateRequestStruct(name string, paramStructName string) *golang.Struct {
-	return &golang.Struct{
-		Name: fmt.Sprintf("%sRequest", name),
-		Fields: []*golang.Field{
-			{Name: "Params", Type: golang.GoType{Name: paramStructName}, Tag: "json:\"params\""},
-		},
+	namedWithTypes := []golang.NameWithType{
+		{Name: "Params", Type: &golang.GoType{Name: paramStructName}},
 	}
+	return golang.GenerateStructForJSON(fmt.Sprintf("%sRequest", name), namedWithTypes)
 }
 
 func generateAccessStructs(paramRef []defs.ParameterRef, name string) []*golang.Struct {
@@ -201,16 +186,16 @@ func generateAccessStructs(paramRef []defs.ParameterRef, name string) []*golang.
 	return []*golang.Struct{paramStruct, reqStruct}
 }
 
-func GenerateFindConfigs(modelName string, findConfig []defs.AccessConfig) (map[string]string, []*golang.Function, []*golang.Struct, error) {
+func GenerateFindConfigs(modelName string, findConfig []defs.AccessConfig) ([]NamedQuery, []*golang.Function, []*golang.Struct, error) {
 
 	functions := make([]*golang.Function, 0, len(findConfig))
 	reqs := make([]*golang.Struct, 0, len(findConfig))
-	queries := make(map[string]string)
+	queries := make([]NamedQuery, 0, len(findConfig))
 
 	for _, conf := range findConfig {
 
 		query, paramRefs := datahelpers.MakeFindQuery(modelName, &conf)
-		queries[conf.Name] = query
+		queries = append(queries, NamedQuery{Name: conf.Name, Query: query})
 		accessStructs := generateAccessStructs(paramRefs, conf.Name)
 		reqs = append(reqs, accessStructs...)
 
@@ -225,16 +210,16 @@ func GenerateFindConfigs(modelName string, findConfig []defs.AccessConfig) (map[
 
 }
 
-func GenerateUpdateConfigs(modelName string, updateConfig []defs.AccessConfig) (map[string]string, []*golang.Function, []*golang.Struct, error) {
+func GenerateUpdateConfigs(modelName string, updateConfig []defs.AccessConfig) ([]NamedQuery, []*golang.Function, []*golang.Struct, error) {
 
 	functions := make([]*golang.Function, 0, len(updateConfig))
 	reqs := make([]*golang.Struct, 0, len(updateConfig))
-	queries := make(map[string]string)
+	queries := make([]NamedQuery, 0, len(updateConfig))
 
 	for _, conf := range updateConfig {
 
 		query, paramRefs := datahelpers.MakeUpdateQuery(modelName, &conf)
-		queries[conf.Name] = query
+		queries = append(queries, NamedQuery{Name: conf.Name, Query: query})
 
 		accessStructs := generateAccessStructs(paramRefs, conf.Name)
 		reqs = append(reqs, accessStructs...)
@@ -249,14 +234,14 @@ func GenerateUpdateConfigs(modelName string, updateConfig []defs.AccessConfig) (
 
 }
 
-func GenerateAddConfigs(modelName string, addConfig []defs.AccessConfig) (map[string]string, []*golang.Function, []*golang.Struct, error) {
+func GenerateAddConfigs(modelName string, addConfig []defs.AccessConfig) ([]NamedQuery, []*golang.Function, []*golang.Struct, error) {
 	functions := make([]*golang.Function, 0, len(addConfig))
 	reqs := make([]*golang.Struct, 0, len(addConfig))
-	queries := make(map[string]string)
+	queries := make([]NamedQuery, 0, len(addConfig))
 
 	for _, conf := range addConfig {
 		query, paramRefs := datahelpers.MakeAddQuery(modelName, &conf)
-		queries[conf.Name] = query
+		queries = append(queries, NamedQuery{Name: conf.Name, Query: query})
 		accessStructs := generateAccessStructs(paramRefs, conf.Name)
 		reqs = append(reqs, accessStructs...)
 		paramFn := ReadParamsFunction(paramRefs, conf.Name, "values", "params")
@@ -268,14 +253,14 @@ func GenerateAddConfigs(modelName string, addConfig []defs.AccessConfig) (map[st
 
 }
 
-func GenerateAddOrReplaceConfigs(modelName string, addOrReplaceConfig []defs.AccessConfig) (map[string]string, []*golang.Function, []*golang.Struct, error) {
+func GenerateAddOrReplaceConfigs(modelName string, addOrReplaceConfig []defs.AccessConfig) ([]NamedQuery, []*golang.Function, []*golang.Struct, error) {
 	functions := make([]*golang.Function, 0, len(addOrReplaceConfig))
 	reqs := make([]*golang.Struct, 0, len(addOrReplaceConfig))
-	queries := make(map[string]string)
+	queries := make([]NamedQuery, 0, len(addOrReplaceConfig))
 
 	for _, conf := range addOrReplaceConfig {
 		query, paramRefs := datahelpers.MakeAddOrReplaceQuery(modelName, &conf)
-		queries[conf.Name] = query
+		queries = append(queries, NamedQuery{Name: conf.Name, Query: query})
 		accessStructs := generateAccessStructs(paramRefs, conf.Name)
 		reqs = append(reqs, accessStructs...)
 		paramFn := ReadParamsFunction(paramRefs, conf.Name, "values", "params")
@@ -286,14 +271,14 @@ func GenerateAddOrReplaceConfigs(modelName string, addOrReplaceConfig []defs.Acc
 	return queries, functions, reqs, nil
 }
 
-func GenerateDeleteConfigs(modelName string, deleteConfig []defs.AccessConfig) (map[string]string, []*golang.Function, []*golang.Struct, error) {
+func GenerateDeleteConfigs(modelName string, deleteConfig []defs.AccessConfig) ([]NamedQuery, []*golang.Function, []*golang.Struct, error) {
 	functions := make([]*golang.Function, 0, len(deleteConfig))
 	reqs := make([]*golang.Struct, 0, len(deleteConfig))
-	queries := make(map[string]string)
+	queries := make([]NamedQuery, 0, len(deleteConfig))
 
 	for _, conf := range deleteConfig {
 		query, paramRefs := datahelpers.MakeDeleteQuery(modelName, &conf)
-		queries[conf.Name] = query
+		queries = append(queries, NamedQuery{Name: conf.Name, Query: query})
 		accessStructs := generateAccessStructs(paramRefs, conf.Name)
 		reqs = append(reqs, accessStructs...)
 		paramFn := ReadParamsFunction(paramRefs, conf.Name, "values", "params")
