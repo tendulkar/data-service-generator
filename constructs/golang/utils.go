@@ -20,3 +20,20 @@ func GenerateStructForJSON(modelName string, nameWithTypes []NameWithType) *Stru
 	return &Struct{Name: modelName, Fields: fields}
 
 }
+
+func FunctionCallCE(newOutput, output interface{}, receiver, functionName string, args interface{},
+	isAsync, isDefer bool, errHandler *ErrorHandler, cleanHandler *CleanningHandler) *CodeElement {
+	return &CodeElement{
+		FunctionCall: &FunctionCall{
+			Output:           output,
+			NewOutput:        newOutput,
+			Receiver:         receiver,
+			Function:         functionName,
+			Args:             args,
+			Async:            isAsync,
+			Defer:            isDefer,
+			ErrorHandler:     errHandler,
+			CleanningHandler: cleanHandler,
+		},
+	}
+}

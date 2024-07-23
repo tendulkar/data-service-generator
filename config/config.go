@@ -12,6 +12,7 @@ type ServerConfig struct {
 }
 
 type DatabaseConfig struct {
+	ConfigId string
 	Host     string
 	Port     int
 	User     string

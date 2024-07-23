@@ -65,3 +65,13 @@ type Update struct {
 type Attribute struct {
 	Attribute string `yaml:"attribute"`
 }
+
+type ConnectionConfig struct {
+	DriverName string `yaml:"driver_name"`
+	DBConfigId string `yaml:"db_config_id"`
+}
+
+type DataConfig struct {
+	Models           []ModelConfig     `yaml:"models"`
+	ConnectionConfig *ConnectionConfig `yaml:"connection_config,omitempty"`
+}

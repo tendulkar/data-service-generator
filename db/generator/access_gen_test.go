@@ -148,3 +148,25 @@ func TestGenerate_ErrorCase(t *testing.T) {
 	assert.Nil(t, goSrc)
 	// You can add more specific assertions based on the expected error behavior
 }
+
+func TestSetupDatabaseFunction(t *testing.T) {
+	// Test case 1: Successful setup of the database
+	dataConf := []defs.DataConfig{}
+	expectedImports := []string{"database/sql", "github.com/lib/pq"}
+	expectedReturns := typeOnlyParamsCE("error")
+
+	fn := SetupDatabaseFunction(dataConf)
+	t.Log(fn.FunctionCode())
+	assert.Equal(t, "SetupDatabase", fn.Name)
+	assert.Equal(t, expectedImports, fn.Imports)
+	assert.Equal(t, expectedReturns, fn.Returns)
+
+	// Test case 2: Error handling
+	// Add test case to check behavior when an error occurs during database setup
+
+	// Test case 3: Check if the correct database configuration is used
+	// Add test case to verify that the function uses the correct database configuration values
+
+	// Test case 4: Check if the correct imports are present
+	assert.Equal(t, expectedImports, fn.Imports)
+}

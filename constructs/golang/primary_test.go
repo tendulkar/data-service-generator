@@ -149,6 +149,36 @@ func TestFunctionCall_ToCode(t *testing.T) {
 	if result := funcCall.ToCode(); result != expected {
 		t.Errorf("ToCode() = %v, want %v", result, expected)
 	}
+
+	// Test case: Simple function call
+	funcCall = &FunctionCall{
+		Receiver: "foo",
+		Function: "FnName",
+		Args:     []string{"a", "b"},
+		Output:   []interface{}{&Literal{Value: "c", Indexes: "one"}, "err"},
+	}
+	expected = `c["one"], err = foo.FnName(a, b)`
+	if result := funcCall.ToCode(); result != expected {
+		t.Errorf("ToCode() = %v, want %v", result, expected)
+	}
+
+	// Test case: Args as Mul type with Mul's Left as FunctionCall type
+	mulLeft := &FunctionCall{
+		Receiver: "bar",
+		Function: "MulFn",
+		Args:     []string{"x", "y"},
+	}
+	funcCall = &FunctionCall{
+		Receiver: "foo",
+		Function: "FnName",
+		Args:     []interface{}{&Mul{BinaryOp: BinaryOp{Left: mulLeft, Right: "z"}}, "b"},
+		Output:   []interface{}{&Literal{Value: "c", Indexes: "one"}, "err"},
+	}
+	expected = `c["one"], err = foo.FnName((bar.MulFn(x, y) * z), b)`
+	if result := funcCall.ToCode(); result != expected {
+		t.Errorf("ToCode() = %v, want %v", result, expected)
+	}
+
 }
 
 func TestCodeElement_ToCode(t *testing.T) {

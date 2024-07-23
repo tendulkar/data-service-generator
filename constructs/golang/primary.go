@@ -294,6 +294,7 @@ type KeyValues []*KeyValue
 type StructCreation struct {
 	Output      interface{} `yaml:"out,omitempty"`
 	NewOutput   interface{} `yaml:"nout,omitempty"`
+	ModuleName  string      `yaml:"module_name"`
 	StructType  string      `yaml:"struct_type"`
 	KeyValues   KeyValues   `yaml:"values"`
 	NoReference bool        `yaml:"no_ref,omitempty"`
@@ -315,14 +316,15 @@ type FunctionCall struct {
 	Args             interface{} `yaml:"args,omitempty"`
 	Defer            bool        `yaml:"defer,omitempty"`
 	Async            bool        `yaml:"async,omitempty"`
-	ErrorHandler     `yaml:",inline"`
-	CleanningHandler CleanningHandler `yaml:"clean,omitempty"`
+	*ErrorHandler    `yaml:",inline"`
+	CleanningHandler *CleanningHandler `yaml:"clean,omitempty"`
 }
 
 type Literal struct {
-	Value   interface{} `yaml:"val"`
-	Type    string      `yaml:"type,omitempty"`
-	Indexes interface{} `yaml:"indexes,omitempty"`
+	Value     interface{} `yaml:"val"`
+	Type      string      `yaml:"type,omitempty"`
+	Indexes   interface{} `yaml:"indexes,omitempty"`
+	Attribute interface{} `yaml:"attr,omitempty"`
 }
 
 type MapLookup struct {
@@ -565,6 +567,8 @@ func resolveStringOrCodeElement(v interface{}, sep string) string {
 		return bodyCodeGen(rv)
 	case *CodeElement:
 		return rv.ToCode()
+	case CodeBlock:
+		return rv.ToCode()
 	case map[string]interface{}:
 		st := convertMapToStruct[*CodeElement](rv)
 		return st.ToCode()
@@ -745,7 +749,7 @@ func (it *IterateElement) ToCode() string {
 }
 
 func (kv *KeyValue) ToCode() string {
-	value := resolveStringOrCodeElement(kv.Value, ", ")
+	value := resolveLiteral(kv.Value)
 	return fmt.Sprintf("%s: %s", kv.Key, value)
 }
 
@@ -760,10 +764,14 @@ func (kvs KeyValues) ToCode() string {
 
 func (sc *StructCreation) ToCode() string {
 	fieldsCode := sc.KeyValues.ToCode()
-	if sc.NoReference {
-		return fmt.Sprintf("%s{%s}", sc.StructType, fieldsCode)
+	typeName := sc.StructType
+	if sc.ModuleName != "" {
+		typeName = fmt.Sprintf("%s.%s", sc.ModuleName, sc.StructType)
 	}
-	return fmt.Sprintf("&%s{%s}", sc.StructType, fieldsCode)
+	if sc.NoReference {
+		return fmt.Sprintf("%s{%s}", typeName, fieldsCode)
+	}
+	return fmt.Sprintf("&%s{%s}", typeName, fieldsCode)
 }
 
 func (gr *GoRoutine) ToCode() string {
@@ -818,12 +826,12 @@ func (fc *FunctionCall) ToCode() string {
 
 	fnPart := fmt.Sprintf("%s%s(%s)", leftSide, fnName, argsCode)
 	fullCode := fnPart
-	errPart := fc.ErrorHandler.ToCode()
-	if errPart != "" {
+	if fc.ErrorHandler != nil {
+		errPart := fc.ErrorHandler.ToCode()
 		fullCode = fmt.Sprintf("%s\n%s", fnPart, errPart)
 	}
-	cleanPart := fc.CleanningHandler.ToCode()
-	if cleanPart != "" {
+	if fc.CleanningHandler != nil {
+		cleanPart := fc.CleanningHandler.ToCode()
 		fullCode = fmt.Sprintf("%s\n%s", fullCode, cleanPart)
 	}
 
@@ -842,6 +850,18 @@ func (l *Literal) ToCode() string {
 		}
 
 		return fmt.Sprintf("%s%s", resolveStringOrCodeElement(l.Value, ", "), strings.Join(indicesCode, ""))
+	}
+
+	if l.Attribute != nil {
+		attributes := []string{}
+		if reflect.TypeOf(l.Attribute).Kind() == reflect.Slice {
+			for _, attr := range l.Attribute.([]*Literal) {
+				attributes = append(attributes, resolveLiteral(attr))
+			}
+		} else {
+			attributes = append(attributes, resolveLiteral(l.Attribute))
+		}
+		return fmt.Sprintf("%s%s", resolveStringOrCodeElement(l.Value, ", "), strings.Join(attributes, "."))
 	}
 	if l.Type == "" {
 		return resolveLiteral(l.Value)

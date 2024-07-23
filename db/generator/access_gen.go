@@ -13,6 +13,32 @@ import (
 	"stellarsky.ai/platform/codegen/data-service-generator/db/models"
 )
 
+func GenerateDB(model *models.Model, dataConfig *defs.DataConfig) ([]*golang.UnitModule, error) {
+
+	unitModules := make([]*golang.UnitModule, 0)
+	for _, config := range dataConfig.Models {
+		srcFile, err := Generate(config)
+		if err != nil {
+			return nil, err
+		}
+
+		unitModule := &golang.UnitModule{
+			Name:         golang.ToSnakeCase(config.Model.Name),
+			Structs:      srcFile.Structs,
+			Functions:    srcFile.Functions,
+			Variables:    srcFile.Variables,
+			Constants:    srcFile.Constants,
+			Imports:      srcFile.Imports,
+			Dependencies: srcFile.Dependencies,
+		}
+		unitModules = append(unitModules, unitModule)
+
+	}
+
+	return unitModules, nil
+
+}
+
 func readTypeAndValidations(attributeId int64) (string, *golang.GoType, []*models.Validation, error) {
 	attribute, ok := config.Attributes[attributeId]
 	if !ok {
@@ -253,4 +279,78 @@ func GenerateDeleteConfigs(modelName string, deleteConfig []defs.AccessConfig) (
 		functions = append(functions, fn)
 	}
 	return queries, functions, reqs, nil
+}
+
+func SetupDatabaseFunction(dataConf []defs.DataConfig) *golang.Function {
+
+	dsn := fmt.Sprintf("user=%s password=%s dbname=%s port=%d host=%s", "postgres", "postgres", "postgres", 5432, "localhost")
+	fmt.Println(dsn)
+	return &golang.Function{
+		Name:    "SetupDatabase",
+		Imports: []string{"database/sql", "github.com/lib/pq"},
+		Returns: typeOnlyParamsCE("error"),
+		Body: golang.CodeElements{
+			{
+				StructCreation: &golang.StructCreation{
+					NewOutput:  "cfg",
+					ModuleName: "pg",
+					StructType: "Config",
+					KeyValues: golang.KeyValues{
+						{Key: "User", Value: "postgres"},
+						{Key: "Password", Value: "<PASSWORD>"},
+						{Key: "Database", Value: "postgres"},
+						{Key: "Port", Value: 5432},
+						{Key: "Host", Value: "localhost"},
+					},
+				},
+			},
+			{
+				FunctionCall: &golang.FunctionCall{
+					NewOutput: []string{"db", "err"},
+					Function:  "Open",
+					Receiver:  "db",
+					Args: []interface{}{
+						"postgres",
+						&golang.FunctionCall{
+							Function: "FormatDSN",
+							Receiver: "cfg",
+						},
+					},
+					ErrorHandler: golang.ErrorHandler{
+						ErrorFunctionReturns: typeOnlyParamsCE("error"),
+					},
+				},
+			},
+			{
+				FunctionCall: &golang.FunctionCall{
+					Output:   "err",
+					Function: "Ping",
+					Receiver: "db",
+					ErrorHandler: golang.ErrorHandler{
+						ErrorFunctionReturns: typeOnlyParamsCE("error"),
+					},
+				},
+			},
+			{
+				FunctionCall: &golang.FunctionCall{
+					Function: "SetMaxIdleConns",
+					Receiver: "db",
+					Args:     10,
+				},
+			},
+			{
+				FunctionCall: &golang.FunctionCall{
+					Function: "SetConnMaxLifetime",
+					Receiver: "db",
+					Args: &golang.Mul{BinaryOp: golang.BinaryOp{
+						Left: &golang.Literal{
+							Value:     "time",
+							Attribute: "Minute",
+						},
+						Right: 30}},
+				},
+			},
+			returnValuesCE("nil"),
+		},
+	}
 }

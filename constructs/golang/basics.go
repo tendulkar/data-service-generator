@@ -191,6 +191,7 @@ type Function struct {
 	Returns      []*Parameter `yaml:"returns,omitempty"`
 	Body         CodeElements `yaml:"body,omitempty"`
 	Receiver     *Receiver    `yaml:"receiver,omitempty"` // Nil if not a member function
+	Imports      []string     `yaml:"imports,omitempty"`
 	Dependencies []Dependency `yaml:"dependencies,omitempty"`
 }
 
@@ -255,12 +256,8 @@ func (s Struct) StructCode() (string, map[string]bool) {
 		}
 		funcDefs = append(funcDefs, fnCode)
 	}
-	for src := range gatherSources(nil, nil, s.Fields, nil) {
+	for src := range gatherSources(nil, nil, s.Fields, nil, s.Imports) {
 		allSources[src] = true
-	}
-
-	for _, imp := range s.Imports {
-		allSources[imp] = true
 	}
 
 	return fmt.Sprintf("%s\n%s", structDef, strings.Join(funcDefs, "\n\n")), allSources
@@ -294,7 +291,7 @@ func (f Function) FunctionCode() (string, map[string]bool) {
 	returnStr := formatReturnTypes(returns)
 
 	// Generate all required import statements
-	allImports := gatherSources(f.Parameters, f.Body, nil, f.Returns)
+	allImports := gatherSources(f.Parameters, f.Body, nil, f.Returns, f.Imports)
 
 	receiver := ""
 	if f.Receiver != nil {
@@ -336,7 +333,7 @@ func (s *GoSourceFile) SourceCode() (string, map[Dependency]bool, error) {
 }
 
 // gatherSources collects import sources from parameters and returns.
-func gatherSources(params []*Parameter, elems CodeElements, fields []*Field, returns []*Parameter) map[string]bool {
+func gatherSources(params []*Parameter, elems CodeElements, fields []*Field, returns []*Parameter, imports []string) map[string]bool {
 	uniqueSources := make(map[string]bool)
 	for _, param := range params {
 		if param.Type.Source != "" {
@@ -356,6 +353,10 @@ func gatherSources(params []*Parameter, elems CodeElements, fields []*Field, ret
 
 	for _, src := range elems.Imports() {
 		uniqueSources[src] = true
+	}
+
+	for _, imp := range imports {
+		uniqueSources[imp] = true
 	}
 
 	return uniqueSources
