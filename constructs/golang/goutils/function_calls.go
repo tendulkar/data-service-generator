@@ -184,22 +184,22 @@ func FCEHOutReceiverCE(output interface{}, receiver string, funcName string, err
 		errorHandler, nil)
 }
 
-func FCEHNewOutCE(output interface{}, newOutput interface{}, funcName string, errorHandler *golang.ErrorHandler) *golang.CodeElement {
+func FCEHNewOutCE(newOutput interface{}, funcName string, errorHandler *golang.ErrorHandler) *golang.CodeElement {
 	return golang.FunctionCallCE(newOutput, nil, "", funcName, nil, false, false,
 		errorHandler, nil)
 }
 
-func FCEHNewOutArgsCE(output interface{}, newOutput interface{}, funcName string, args interface{}, errorHandler *golang.ErrorHandler) *golang.CodeElement {
+func FCEHNewOutArgsCE(newOutput interface{}, funcName string, args interface{}, errorHandler *golang.ErrorHandler) *golang.CodeElement {
 	return golang.FunctionCallCE(newOutput, nil, "", funcName, args, false, false,
 		errorHandler, nil)
 }
 
-func FCEHNewOutReceiverArgsCE(output interface{}, newOutput interface{}, receiver string, funcName string, args interface{}, errorHandler *golang.ErrorHandler) *golang.CodeElement {
+func FCEHNewOutReceiverArgsCE(newOutput interface{}, receiver string, funcName string, args interface{}, errorHandler *golang.ErrorHandler) *golang.CodeElement {
 	return golang.FunctionCallCE(newOutput, nil, receiver, funcName, args, false, false,
 		errorHandler, nil)
 }
 
-func FCEHNewOutReceiverCE(output interface{}, newOutput interface{}, receiver string, funcName string, errorHandler *golang.ErrorHandler) *golang.CodeElement {
+func FCEHNewOutReceiverCE(newOutput interface{}, receiver string, funcName string, errorHandler *golang.ErrorHandler) *golang.CodeElement {
 	return golang.FunctionCallCE(newOutput, nil, receiver, funcName, nil, false, false,
 		errorHandler, nil)
 }
@@ -384,22 +384,22 @@ func FCEHCHOutReceiverCE(output interface{}, receiver string, funcName string, e
 		errorHandler, cleanningHandler)
 }
 
-func FCEHCHNewOutCE(output interface{}, newOutput interface{}, funcName string, errorHandler *golang.ErrorHandler, cleanningHandler *golang.CleanningHandler) *golang.CodeElement {
+func FCEHCHNewOutCE(newOutput interface{}, funcName string, errorHandler *golang.ErrorHandler, cleanningHandler *golang.CleanningHandler) *golang.CodeElement {
 	return golang.FunctionCallCE(newOutput, nil, "", funcName, nil, false, false,
 		errorHandler, cleanningHandler)
 }
 
-func FCEHCHNewOutArgsCE(output interface{}, newOutput interface{}, funcName string, args interface{}, errorHandler *golang.ErrorHandler, cleanningHandler *golang.CleanningHandler) *golang.CodeElement {
+func FCEHCHNewOutArgsCE(newOutput interface{}, funcName string, args interface{}, errorHandler *golang.ErrorHandler, cleanningHandler *golang.CleanningHandler) *golang.CodeElement {
 	return golang.FunctionCallCE(newOutput, nil, "", funcName, args, false, false,
 		errorHandler, cleanningHandler)
 }
 
-func FCEHCHNewOutReceiverArgsCE(output interface{}, newOutput interface{}, receiver string, funcName string, args interface{}, errorHandler *golang.ErrorHandler, cleanningHandler *golang.CleanningHandler) *golang.CodeElement {
+func FCEHCHNewOutReceiverArgsCE(newOutput interface{}, receiver string, funcName string, args interface{}, errorHandler *golang.ErrorHandler, cleanningHandler *golang.CleanningHandler) *golang.CodeElement {
 	return golang.FunctionCallCE(newOutput, nil, receiver, funcName, args, false, false,
 		errorHandler, cleanningHandler)
 }
 
-func FCEHCHNewOutReceiverCE(output interface{}, newOutput interface{}, receiver string, funcName string, errorHandler *golang.ErrorHandler, cleanningHandler *golang.CleanningHandler) *golang.CodeElement {
+func FCEHCHNewOutReceiverCE(newOutput interface{}, receiver string, funcName string, errorHandler *golang.ErrorHandler, cleanningHandler *golang.CleanningHandler) *golang.CodeElement {
 	return golang.FunctionCallCE(newOutput, nil, receiver, funcName, nil, false, false,
 		errorHandler, cleanningHandler)
 }

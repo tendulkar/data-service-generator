@@ -8,6 +8,7 @@ import (
 	"stellarsky.ai/platform/codegen/data-service-generator/base"
 	"stellarsky.ai/platform/codegen/data-service-generator/config"
 	"stellarsky.ai/platform/codegen/data-service-generator/constructs/golang"
+	"stellarsky.ai/platform/codegen/data-service-generator/constructs/golang/goutils"
 	datahelpers "stellarsky.ai/platform/codegen/data-service-generator/db/generator/data-helpers"
 	"stellarsky.ai/platform/codegen/data-service-generator/db/generator/defs"
 	"stellarsky.ai/platform/codegen/data-service-generator/db/models"
@@ -304,6 +305,8 @@ func SetupDatabaseFunction(dataConf []defs.DataConfig) *golang.Function {
 					},
 				},
 			},
+			goutils.FCEHNewOutReceiverArgsCE([]string{"db", "err"}, "sql", "Open",
+				[]string{"postgres", dsn}, nil),
 			{
 				FunctionCall: &golang.FunctionCall{
 					NewOutput: []string{"db", "err"},

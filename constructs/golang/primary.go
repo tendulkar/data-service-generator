@@ -57,6 +57,8 @@ type CodeElement struct {
 	GoRoutine          *GoRoutine                  `yaml:"async,omitempty"`
 	DeferRoutine       *DeferRoutine               `yaml:"finally,omitempty"`
 	FunctionCall       *FunctionCall               `yaml:"call,omitempty"`
+	ErrorHandler       *ErrorHandler               `yaml:"on_error,omitempty"`
+	CleanningHandler   *CleanningHandler           `yaml:"clean,omitempty"`
 	Steps              []*CodeElement              `yaml:"steps,omitempty"`
 	Imports            []string                    `yaml:"imports,omitempty"`
 	Dependencies       []Dependency                `yaml:"dependencies,omitempty"`
@@ -348,7 +350,6 @@ type CleanningHandler struct {
 	Function string       `yaml:"func,omitempty"`
 	Args     interface{}  `yaml:"args,omitempty"`
 	Steps    CodeElements `yaml:"steps,omitempty"`
-	Params   interface{}  `yaml:"params,omitempty"`
 }
 
 func resolveTypeLiteral(v interface{}, t string) string {
@@ -1199,6 +1200,8 @@ if {{template "code" .Condition}} {
 {{if .GoRoutine}}{{.GoRoutine.ToCode}}{{end}}
 {{if .DeferRoutine}}{{.DeferRoutine.ToCode}}{{end}}
 {{if .FunctionCall}}{{.FunctionCall.ToCode}}{{end}}
+{{if .ErrorHandler}}{{.ErrorHandler.ToCode}}{{end}}
+{{if .CleanningHandler}}{{.CleanningHandler.ToCode}}{{end}}
 {{if .Return}}{{return .Return}}{{end}}
 {{if .MapLookup}}{{.MapLookup.ToCode}}{{end}}
 {{if .IfError}}{{ife .IfError}}{{end}}

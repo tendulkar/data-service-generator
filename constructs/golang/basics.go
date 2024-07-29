@@ -294,7 +294,7 @@ func (f Function) FunctionCode() (string, map[string]bool) {
 	allImports := gatherSources(f.Parameters, f.Body, nil, f.Returns, f.Imports)
 
 	receiver := ""
-	if f.Receiver != nil {
+	if f.Receiver != nil && f.Receiver.Type != nil {
 		receiverType := f.Receiver.Type.Name
 		if !strings.HasPrefix(receiverType, "*") { // Member functions always on pointer receivers
 			receiverType = "*" + receiverType
