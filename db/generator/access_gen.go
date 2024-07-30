@@ -286,10 +286,13 @@ func SetupDatabaseFunction(dataConf []defs.DataConfig) *golang.Function {
 
 	dsn := fmt.Sprintf("user=%s password=%s dbname=%s port=%d host=%s", "postgres", "postgres", "postgres", 5432, "localhost")
 	fmt.Println(dsn)
+	fn := golang.Function{}
+	fn.FunctionCode()
+	returnParams := typeOnlyParamsCE("error")
 	return &golang.Function{
 		Name:    "SetupDatabase",
 		Imports: []string{"database/sql", "github.com/lib/pq"},
-		Returns: typeOnlyParamsCE("error"),
+		Returns: returnParams,
 		Body: golang.CodeElements{
 			{
 				StructCreation: &golang.StructCreation{
@@ -305,54 +308,20 @@ func SetupDatabaseFunction(dataConf []defs.DataConfig) *golang.Function {
 					},
 				},
 			},
+			{
+				NewAssign: &golang.NewAssignment{
+					Left:  []string{"driverName", "dsn"},
+					Right: golang.NewLits("postgres", dsn),
+				},
+			},
 			goutils.FCEHNewOutReceiverArgsCE([]string{"db", "err"}, "sql", "Open",
-				[]string{"postgres", dsn}, nil),
-			{
-				FunctionCall: &golang.FunctionCall{
-					NewOutput: []string{"db", "err"},
-					Function:  "Open",
-					Receiver:  "db",
-					Args: []interface{}{
-						"postgres",
-						&golang.FunctionCall{
-							Function: "FormatDSN",
-							Receiver: "cfg",
-						},
-					},
-					ErrorHandler: golang.ErrorHandler{
-						ErrorFunctionReturns: typeOnlyParamsCE("error"),
-					},
-				},
-			},
-			{
-				FunctionCall: &golang.FunctionCall{
-					Output:   "err",
-					Function: "Ping",
-					Receiver: "db",
-					ErrorHandler: golang.ErrorHandler{
-						ErrorFunctionReturns: typeOnlyParamsCE("error"),
-					},
-				},
-			},
-			{
-				FunctionCall: &golang.FunctionCall{
-					Function: "SetMaxIdleConns",
-					Receiver: "db",
-					Args:     10,
-				},
-			},
-			{
-				FunctionCall: &golang.FunctionCall{
-					Function: "SetConnMaxLifetime",
-					Receiver: "db",
-					Args: &golang.Mul{BinaryOp: golang.BinaryOp{
-						Left: &golang.Literal{
-							Value:     "time",
-							Attribute: "Minute",
-						},
-						Right: 30}},
-				},
-			},
+				[]string{"driverName", "dsn"}, goutils.EHError("err")),
+
+			goutils.FCEHOutReceiverArgsCE([]string{"err"}, "db", "Ping", nil, goutils.EHError("err")),
+			goutils.FCEHReceiverArgsCE("db", "SetMaxIdleConns", 10, goutils.EHError("err")),
+			goutils.FCEHReceiverArgsCE("db", "SetConnMaxLifetime", &golang.Mul{BinaryOp: golang.BinaryOp{
+				Left: &golang.Literal{Value: "time", Attribute: "Minute"}, Right: 30}},
+				goutils.EHError("err")),
 			returnValuesCE("nil"),
 		},
 	}

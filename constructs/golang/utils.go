@@ -37,3 +37,20 @@ func FunctionCallCE(newOutput, output interface{}, receiver, functionName string
 		},
 	}
 }
+
+func NewCleanningHandler(receiver string, funcName string, args interface{}, steps CodeElements) *CleanningHandler {
+	return &CleanningHandler{
+		Receiver: receiver,
+		Function: funcName,
+		Args:     args,
+		Steps:    steps,
+	}
+}
+
+func NewLits(values ...interface{}) []*Literal {
+	literals := make([]*Literal, 0, len(values))
+	for _, value := range values {
+		literals = append(literals, &Literal{Value: value})
+	}
+	return literals
+}

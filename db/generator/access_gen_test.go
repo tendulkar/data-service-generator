@@ -156,17 +156,45 @@ func TestSetupDatabaseFunction(t *testing.T) {
 	expectedReturns := typeOnlyParamsCE("error")
 
 	fn := SetupDatabaseFunction(dataConf)
-	t.Log(fn.FunctionCode())
+	fnCode, fnImports := fn.FunctionCode()
+
+	expectedFnCode := `func SetupDatabase() error {
+	cfg := &pg.Config{
+		User: "postgres",
+		Password: "<PASSWORD>",
+		Database: "postgres",
+		Port: 5432,
+		Host: "localhost",
+	}
+	driverName, dsn := "postgres", "user=postgres password=postgres dbname=postgres port=5432 host=localhost"
+	db, err := sql.Open(driverName, dsn)
+	if err != nil {
+		return err
+	}
+	err = db.Ping()
+	if err != nil {
+		return err
+	}
+	db.SetMaxIdleConns(10)
+	if err != nil {
+		return err
+	}
+	db.SetConnMaxLifetime((time.Minute * 30))
+	if err != nil {
+		return err
+	}
+	return nil
+}`
+
+	t.Log(fnCode)
+	assert.Equal(t, expectedFnCode, fnCode)
 	assert.Equal(t, "SetupDatabase", fn.Name)
 	assert.Equal(t, expectedImports, fn.Imports)
 	assert.Equal(t, expectedReturns, fn.Returns)
 
-	// Test case 2: Error handling
-	// Add test case to check behavior when an error occurs during database setup
-
-	// Test case 3: Check if the correct database configuration is used
-	// Add test case to verify that the function uses the correct database configuration values
-
-	// Test case 4: Check if the correct imports are present
-	assert.Equal(t, expectedImports, fn.Imports)
+	// Test case 2: Check if the correct imports are present
+	assert.Equal(t, map[string]bool{
+		"database/sql":      true,
+		"github.com/lib/pq": true,
+	}, fnImports)
 }

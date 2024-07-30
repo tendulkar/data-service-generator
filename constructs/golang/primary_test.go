@@ -3,6 +3,7 @@ package golang
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v3"
 )
 
@@ -804,4 +805,38 @@ steps:
 		t.Errorf("updateCodeElem.ToCode() = %v, want %v", result, expectedUpdateCode)
 	}
 
+}
+
+func TestStructCreation_ToCode(t *testing.T) {
+
+	st := StructCreation{
+		NewOutput:  "user1",
+		StructType: "User",
+		KeyValues: KeyValues{
+			{Key: "Name", Value: "John"},
+			{Key: "Age", Value: 25},
+		},
+	}
+	resultCode := st.ToCode()
+
+	expectedCode := `user1 := &User{
+	Name: "John",
+	Age: 25,
+}`
+
+	assert.Equal(t, expectedCode, resultCode)
+
+}
+
+func TestVariableCreation_ToCode(t *testing.T) {
+	v := VariableCreate{
+		Names:       "user1",
+		Type:        "User",
+		IsReference: true,
+		Values:      "nil",
+	}
+
+	resultCode := v.ToCode()
+	expectedCode := `var user1 *User = nil`
+	assert.Equal(t, expectedCode, resultCode)
 }

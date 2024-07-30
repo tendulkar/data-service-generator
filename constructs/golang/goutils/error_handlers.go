@@ -10,6 +10,13 @@ func EHReturnParams(params []*golang.Parameter) *golang.ErrorHandler {
 	}
 }
 
+func EHError(errName string) *golang.ErrorHandler {
+	return &golang.ErrorHandler{
+		Error:        errName,
+		ErrorReturns: []string{errName},
+	}
+}
+
 func EHNilError(errName string) *golang.ErrorHandler {
 	return &golang.ErrorHandler{
 		Error:        errName,

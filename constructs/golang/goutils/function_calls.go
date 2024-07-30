@@ -104,62 +104,62 @@ func FCNewOutReceiverCE(newOutput interface{}, receiver string, funcName string)
 		nil, nil)
 }
 
-func FCEHCE(output interface{}, funcName string, errorHandler *golang.ErrorHandler) *golang.CodeElement {
+func FCEHCE(funcName string, errorHandler *golang.ErrorHandler) *golang.CodeElement {
 	return golang.FunctionCallCE(nil, nil, "", funcName, nil, false, false,
 		errorHandler, nil)
 }
 
-func FCEHArgsCE(output interface{}, funcName string, args interface{}, errorHandler *golang.ErrorHandler) *golang.CodeElement {
+func FCEHArgsCE(funcName string, args interface{}, errorHandler *golang.ErrorHandler) *golang.CodeElement {
 	return golang.FunctionCallCE(nil, nil, "", funcName, args, false, false,
 		errorHandler, nil)
 }
 
-func FCEHReceiverArgsCE(output interface{}, receiver string, funcName string, args interface{}, errorHandler *golang.ErrorHandler) *golang.CodeElement {
+func FCEHReceiverArgsCE(receiver string, funcName string, args interface{}, errorHandler *golang.ErrorHandler) *golang.CodeElement {
 	return golang.FunctionCallCE(nil, nil, receiver, funcName, args, false, false,
 		errorHandler, nil)
 }
 
-func FCEHReceiverCE(output interface{}, receiver string, funcName string, errorHandler *golang.ErrorHandler) *golang.CodeElement {
+func FCEHReceiverCE(receiver string, funcName string, errorHandler *golang.ErrorHandler) *golang.CodeElement {
 	return golang.FunctionCallCE(nil, nil, receiver, funcName, nil, false, false,
 		errorHandler, nil)
 }
 
-func FCEHAsyncCE(output interface{}, funcName string, errorHandler *golang.ErrorHandler) *golang.CodeElement {
+func FCEHAsyncCE(funcName string, errorHandler *golang.ErrorHandler) *golang.CodeElement {
 	return golang.FunctionCallCE(nil, nil, "", funcName, nil, true, false,
 		errorHandler, nil)
 }
 
-func FCEHArgsAsyncCE(output interface{}, funcName string, args interface{}, errorHandler *golang.ErrorHandler) *golang.CodeElement {
+func FCEHArgsAsyncCE(funcName string, args interface{}, errorHandler *golang.ErrorHandler) *golang.CodeElement {
 	return golang.FunctionCallCE(nil, nil, "", funcName, args, true, false,
 		errorHandler, nil)
 }
 
-func FCEHReceiverArgsAsyncCE(output interface{}, receiver string, funcName string, args interface{}, errorHandler *golang.ErrorHandler) *golang.CodeElement {
+func FCEHReceiverArgsAsyncCE(receiver string, funcName string, args interface{}, errorHandler *golang.ErrorHandler) *golang.CodeElement {
 	return golang.FunctionCallCE(nil, nil, receiver, funcName, args, true, false,
 		errorHandler, nil)
 }
 
-func FCEHReceiverAsyncCE(output interface{}, receiver string, funcName string, errorHandler *golang.ErrorHandler) *golang.CodeElement {
+func FCEHReceiverAsyncCE(receiver string, funcName string, errorHandler *golang.ErrorHandler) *golang.CodeElement {
 	return golang.FunctionCallCE(nil, nil, receiver, funcName, nil, true, false,
 		errorHandler, nil)
 }
 
-func FCEHDeferCE(output interface{}, funcName string, errorHandler *golang.ErrorHandler) *golang.CodeElement {
+func FCEHDeferCE(funcName string, errorHandler *golang.ErrorHandler) *golang.CodeElement {
 	return golang.FunctionCallCE(nil, nil, "", funcName, nil, false, true,
 		errorHandler, nil)
 }
 
-func FCEHArgsDeferCE(output interface{}, funcName string, args interface{}, errorHandler *golang.ErrorHandler) *golang.CodeElement {
+func FCEHArgsDeferCE(funcName string, args interface{}, errorHandler *golang.ErrorHandler) *golang.CodeElement {
 	return golang.FunctionCallCE(nil, nil, "", funcName, args, false, true,
 		errorHandler, nil)
 }
 
-func FCEHReceiverArgsDeferCE(output interface{}, receiver string, funcName string, args interface{}, errorHandler *golang.ErrorHandler) *golang.CodeElement {
+func FCEHReceiverArgsDeferCE(receiver string, funcName string, args interface{}, errorHandler *golang.ErrorHandler) *golang.CodeElement {
 	return golang.FunctionCallCE(nil, nil, receiver, funcName, args, false, true,
 		errorHandler, nil)
 }
 
-func FCEHReceiverDeferCE(output interface{}, receiver string, funcName string, errorHandler *golang.ErrorHandler) *golang.CodeElement {
+func FCEHReceiverDeferCE(receiver string, funcName string, errorHandler *golang.ErrorHandler) *golang.CodeElement {
 	return golang.FunctionCallCE(nil, nil, receiver, funcName, nil, false, true,
 		errorHandler, nil)
 }

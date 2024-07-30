@@ -5,16 +5,13 @@ import (
 )
 
 func CHCall(receiverName, funcName string, args ...interface{}) *golang.CleanningHandler {
-	return &golang.CleanningHandler{
-		Receiver: receiverName,
-		Function: funcName,
-		Args:     args,
-	}
+	return golang.NewCleanningHandler(receiverName, funcName, args, nil)
+}
+
+func CHCloseCall(receiverName string, args ...interface{}) *golang.CleanningHandler {
+	return golang.NewCleanningHandler(receiverName, "Close", args, nil)
 }
 
 func CHStepsCall(steps []*golang.CodeElement, args ...interface{}) *golang.CleanningHandler {
-	return &golang.CleanningHandler{
-		Steps: steps,
-		Args:  args,
-	}
+	return golang.NewCleanningHandler("", "", args, steps)
 }

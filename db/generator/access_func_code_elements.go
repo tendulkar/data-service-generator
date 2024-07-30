@@ -21,7 +21,7 @@ func parseParamsCE(confName string, requestParamsName string, valuesName string,
 		NewOutput: []string{valuesName, "err"},
 		Function:  fmt.Sprintf("%sParseParams", confName),
 		Args:      []string{requestParamsName},
-		ErrorHandler: golang.ErrorHandler{
+		ErrorHandler: &golang.ErrorHandler{
 			ErrorFunctionReturns: returnParams,
 		},
 	}
@@ -33,10 +33,10 @@ func queryStmtCE(stmtName, valuesName, rowsName string, returnParams []*golang.P
 		Receiver:  stmtName,
 		Function:  "Query",
 		Args:      []string{fmt.Sprintf("%s...", valuesName)},
-		ErrorHandler: golang.ErrorHandler{
+		ErrorHandler: &golang.ErrorHandler{
 			ErrorFunctionReturns: returnParams,
 		},
-		CleanningHandler: golang.CleanningHandler{
+		CleanningHandler: &golang.CleanningHandler{
 			Receiver: rowsName,
 			Function: "Close",
 		},
@@ -49,7 +49,7 @@ func queryRowStmtCE(stmtName string, args []string, valuesName string, returnPar
 		Receiver:  fmt.Sprintf("%s.QueryRow(%s...)", stmtName, valuesName),
 		Function:  "Scan",
 		Args:      args,
-		ErrorHandler: golang.ErrorHandler{
+		ErrorHandler: &golang.ErrorHandler{
 			Error:                "queryErr",
 			ErrorFunctionReturns: returnParams,
 		},
@@ -62,7 +62,7 @@ func execStmtCE(stmtName, valuesName, resultName string, returnParams []*golang.
 		Receiver:  stmtName,
 		Function:  "Exec",
 		Args:      []string{fmt.Sprintf("%s...", valuesName)},
-		ErrorHandler: golang.ErrorHandler{
+		ErrorHandler: &golang.ErrorHandler{
 			ErrorFunctionReturns: returnParams,
 		},
 	}
@@ -70,8 +70,8 @@ func execStmtCE(stmtName, valuesName, resultName string, returnParams []*golang.
 
 func createVarCE(name string, typ string) *golang.VariableCreate {
 	return &golang.VariableCreate{
-		Name: name,
-		Type: typ,
+		Names: name,
+		Type:  typ,
 	}
 }
 
@@ -107,7 +107,7 @@ func scanRowCE(itemName string, attributes []string, rowsName string) *golang.Fu
 		Receiver:  rowsName,
 		Function:  "Scan",
 		Args:      attributeRefArgs(itemName, attributes),
-		ErrorHandler: golang.ErrorHandler{
+		ErrorHandler: &golang.ErrorHandler{
 			Error:        "scanErr",
 			ErrorReturns: []string{"nil", "scanErr"},
 		},
@@ -223,7 +223,7 @@ func callResultErrorCE(objName, funcName string, args []string, resultName strin
 		Receiver:  objName,
 		Function:  funcName,
 		Args:      args,
-		ErrorHandler: golang.ErrorHandler{
+		ErrorHandler: &golang.ErrorHandler{
 			Error:                errorName,
 			ErrorFunctionReturns: returnParams,
 		},
@@ -458,7 +458,7 @@ func prepareStmtCE(dbVar string, query string, mapName string, indexName string,
 		Function: "Prepare",
 		Args:     []interface{}{&golang.Literal{Value: query}},
 		Output:   []interface{}{&golang.Literal{Value: mapName, Indexes: indexName}, "err"},
-		ErrorHandler: golang.ErrorHandler{
+		ErrorHandler: &golang.ErrorHandler{
 			ErrorFunctionReturns: returnParams,
 		},
 	}

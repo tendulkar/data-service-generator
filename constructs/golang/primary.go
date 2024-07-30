@@ -17,52 +17,122 @@ type CodeBlock interface {
 
 // CodeElement struct handles all operations and control structures
 type CodeElement struct {
-	Add                interface{}                 `yaml:"add,omitempty"`
-	Subtract           interface{}                 `yaml:"sub,omitempty"`
-	Multiply           interface{}                 `yaml:"mul,omitempty"`
-	Divide             interface{}                 `yaml:"div,omitempty"`
-	Modulo             interface{}                 `yaml:"mod,omitempty"`
-	And                interface{}                 `yaml:"and,omitempty"`
-	Or                 interface{}                 `yaml:"or,omitempty"`
-	Not                interface{}                 `yaml:"not,omitempty"`
-	Equal              interface{}                 `yaml:"eq,omitempty"`
-	NotEqual           interface{}                 `yaml:"ne,omitempty"`
-	LessThan           interface{}                 `yaml:"lt,omitempty"`
-	LessThanOrEqual    interface{}                 `yaml:"le,omitempty"`
-	GreaterThan        interface{}                 `yaml:"gt,omitempty"`
-	GreaterThanOrEqual interface{}                 `yaml:"ge,omitempty"`
-	LeftShift          interface{}                 `yaml:"lshift,omitempty"`
-	RightShift         interface{}                 `yaml:"rshift,omitempty"`
-	BitwiseAnd         interface{}                 `yaml:"bit_and,omitempty"`
-	BitwiseOr          interface{}                 `yaml:"bit_or,omitempty"`
-	BitwiseXor         interface{}                 `yaml:"bit_xor,omitempty"`
-	BitwiseNot         interface{}                 `yaml:"bit_not,omitempty"`
-	PostIncrement      interface{}                 `yaml:"post_inc,omitempty"`
-	PostDecrement      interface{}                 `yaml:"post_dec,omitempty"`
-	PreIncrement       interface{}                 `yaml:"pre_inc,omitempty"`
-	PreDecrement       interface{}                 `yaml:"pre_dec,omitempty"`
-	Variable           *VariableCreate             `yaml:"var,omitempty"`
-	Assign             *Assignment                 `yaml:"assign,omitempty"`
-	NewAssign          *NewAssignment              `yaml:"new_assign,omitempty"`
-	If                 *IfElement                  `yaml:"if,omitempty"`
-	Cases              CaseElement                 `yaml:"cases,omitempty"`
-	MatchCases         MatchCases                  `yaml:"match_cases,omitempty"`
-	RepeatCond         *RepeatByCondition          `yaml:"repeat_cond,omitempty"`
-	RepeatInitCond     *RepeatInitConditionElement `yaml:"repeat_init_cond,omitempty"`
-	RepeatLoop         *RepeatLoopElement          `yaml:"repeat,omitempty"`
-	RepeatN            *RepeatNElement             `yaml:"repeat_n,omitempty"`
-	Iterate            *IterateElement             `yaml:"iterate,omitempty"`
-	Return             interface{}                 `yaml:"return,omitempty"`
-	StructCreation     *StructCreation             `yaml:"create,omitempty"`
-	GoRoutine          *GoRoutine                  `yaml:"async,omitempty"`
-	DeferRoutine       *DeferRoutine               `yaml:"finally,omitempty"`
-	FunctionCall       *FunctionCall               `yaml:"call,omitempty"`
-	ErrorHandler       *ErrorHandler               `yaml:"on_error,omitempty"`
-	CleanningHandler   *CleanningHandler           `yaml:"clean,omitempty"`
-	Steps              []*CodeElement              `yaml:"steps,omitempty"`
-	Imports            []string                    `yaml:"imports,omitempty"`
-	Dependencies       []Dependency                `yaml:"dependencies,omitempty"`
-	Literal            interface{}                 `yaml:"lit,omitempty"`
+	// All binary or unary operations (Add, Subtract, Multiply ... PreDecrement) can take either array or corresponding binary op
+	// For example Add can take array like ["x", "y"] or Add{Left: "x", Right: "y"}
+	// For example Subtract can take array like ["x", "y"] or Subtract{Left: "x", Right: "y"}
+	// For example GreaterThan can take array like ["x", "y"] or GreaterThan{Left: "x", Right: "y"}
+	//
+	// All structs can take output or new output, (only one)
+	// For example Add{Output: "c", Left: "a", Right: "b"} will generate c = (a + b)
+	// For example Add{NewOutput: "c", Left: "a", Right: "b"} will generate c := (a + b)
+	Add                interface{} `yaml:"add,omitempty"`
+	Subtract           interface{} `yaml:"sub,omitempty"`
+	Multiply           interface{} `yaml:"mul,omitempty"`
+	Divide             interface{} `yaml:"div,omitempty"`
+	Modulo             interface{} `yaml:"mod,omitempty"`
+	And                interface{} `yaml:"and,omitempty"`
+	Or                 interface{} `yaml:"or,omitempty"`
+	Not                interface{} `yaml:"not,omitempty"`
+	Equal              interface{} `yaml:"eq,omitempty"`
+	NotEqual           interface{} `yaml:"ne,omitempty"`
+	LessThan           interface{} `yaml:"lt,omitempty"`
+	LessThanOrEqual    interface{} `yaml:"le,omitempty"`
+	GreaterThan        interface{} `yaml:"gt,omitempty"`
+	GreaterThanOrEqual interface{} `yaml:"ge,omitempty"`
+	LeftShift          interface{} `yaml:"lshift,omitempty"`
+	RightShift         interface{} `yaml:"rshift,omitempty"`
+	BitwiseAnd         interface{} `yaml:"bit_and,omitempty"`
+	BitwiseOr          interface{} `yaml:"bit_or,omitempty"`
+	BitwiseXor         interface{} `yaml:"bit_xor,omitempty"`
+	BitwiseNot         interface{} `yaml:"bit_not,omitempty"`
+	PostIncrement      interface{} `yaml:"post_inc,omitempty"`
+	PostDecrement      interface{} `yaml:"post_dec,omitempty"`
+	PreIncrement       interface{} `yaml:"pre_inc,omitempty"`
+	PreDecrement       interface{} `yaml:"pre_dec,omitempty"`
+
+	// Variable can take name to create new variable
+	// Example `var int x`
+	//
+	// Assign can take name and value (don't create new variable)
+	// Example Assignment{Left: "x", Right: "y"} will generate `x = y`
+	// NewAssign can take name and value (create new variable)
+	// Example NewAssignment{Left: "x", Right: "y"} will generate `x := y`
+	//
+	// Assign and new assign can take complex values as well on right side or left side
+	// Example NewAssignment{Left: "x", Right: Add{Left: "y", Right: "z"}} will generate `x := y + z`
+	// Example Assignment{Left: "x", Right: Add{Left: "y", Right: "z"}} will generate `x = y + z`
+	// Example Assigment{Left: Literal{Value: "x", Attribute: "a"}, Right: Add{Left: "y", Right: "z"}} will generate `x["a"] = y + z`
+	// Example Assigment{Left: Literal{Value: "x", Attribute: 1}, Right: Add{Left: "y", Right: "z"}} will generate `x[1] = y + z`
+	Variable  *VariableCreate `yaml:"var,omitempty"`
+	Assign    *Assignment     `yaml:"assign,omitempty"`
+	NewAssign *NewAssignment  `yaml:"new_assign,omitempty"`
+
+	// Control structures
+	If         *IfElement  `yaml:"if,omitempty"`
+	Cases      CaseElement `yaml:"cases,omitempty"`
+	MatchCases MatchCases  `yaml:"match_cases,omitempty"`
+
+	// Loop structures
+	// RepeatCond can take condition to repeat (equivalant of `for condition {body}`)
+	// RepeatInitCond can take condition to repeat (equivalant of `for init; condition;  {body}`)
+	// RepeatLoop is full for loop, equivalant of `for init; condition; step {body}`
+	// RepeatN can take i, start and end. Equivalant of `for i = s; i < n; i++ {body}`
+	// Iterate will iterate on array, equivalant of `for i, v := range array {body}`
+	RepeatCond     *RepeatByCondition          `yaml:"repeat_cond,omitempty"`
+	RepeatInitCond *RepeatInitConditionElement `yaml:"repeat_init_cond,omitempty"`
+	RepeatLoop     *RepeatLoopElement          `yaml:"repeat,omitempty"`
+	RepeatN        *RepeatNElement             `yaml:"repeat_n,omitempty"`
+	Iterate        *IterateElement             `yaml:"iterate,omitempty"`
+
+	// Generate return statement, example `return x, y, z`
+	Return interface{} `yaml:"return,omitempty"`
+
+	// Create struct with fields, for example `&Point{x: 1, y: 2}`
+	StructCreation *StructCreation `yaml:"create,omitempty"`
+
+	// Function call, Examples are
+	// FunctionCall{Function: "Signal"} will generate `Signal()`
+	// FunctionCall{Function: "Sort", Receiver: "x"} will generate `x.Sort()`
+	// FunctionCall{Function: "Sort", Receiver: "x", Async: true} will generate `go x.Sort()` (go routine)
+	// FunctionCall{Function: "Close", Receiver: "x", Async: true} will generate `defer x.Close()` (defer function call)
+	// FunctionCall{Function: "Add", Args: []interface{}{"x", "y"}} will generate `Add(x, y)`
+	// FunctionCall{Function: "Add", Args: []interface{}{"x", "y"}, Output: "z"} will generate `z = Add(x, y)`
+	// FunctionCall{Function: "Add", Args: []interface{}{"x", "y"}, NewOutput: "z"} will generate `z := Add(x, y)`
+	// FunctionCall{Function: "Add", Args: []interface{}{Literal{Value: "x", Index: "a"}, Literal{Value: "y", Index: "b"}}} will generate `Add(x["a"], y["b"])`
+	// FunctionCall{Function: "Add", Args: []interface{}{Literal{Value: "x", Index: 1}, Literal{Value: "y", Index: 2}}} will generate `Add(x[1], y[2])`
+	// FunctionCall{Function: "Open", Receiver: "io", Args: []string{"file.txt"}, NewOutput: []string{"f", "err"},
+	// 				ErrorHandler: &ErrorHandler{ErrorReturns: []string{"nil", "err"}}}
+	//		will generate `f, err := io.Open("file.txt"); if err != nil {return nil, err}`
+	// FunctionCall{Function: "Open", Receiver: "io", Args: []string{"file.txt"}, NewOutput: []string{"f", "err"},
+	// 					ErrorHandler: &ErrorHandler{ErrorReturns: []string{"nil", "err"}},
+	// 					CleanningHandler: &CleanningHandler{Receiver: "f", Function: "Close"}}
+	// 		will generate `f, err := io.Open("file.txt"); if err != nil {return nil, err}; defer f.Close()`
+	FunctionCall     *FunctionCall     `yaml:"call,omitempty"`
+	ErrorHandler     *ErrorHandler     `yaml:"on_error,omitempty"`
+	CleanningHandler *CleanningHandler `yaml:"clean,omitempty"`
+
+	// Steps often help us to generate more complex code, like body of if, for, function
+	Steps []*CodeElement `yaml:"steps,omitempty"`
+
+	// All imports used in the code (could be receiver, attribute)
+	// For example "fmt", "database/sql", "github.com/sirupsen/logrus"...
+	Imports []string `yaml:"imports,omitempty"`
+
+	// All dependencies used in the code
+	// For example "github.com/sirupsen/logrus", version "1.2.3"...
+	// No need add builtin imports as dependencies ("database/sql", "fmt", "time"...)
+	Dependencies []Dependency `yaml:"dependencies,omitempty"`
+
+	// Literal allows us write code without quotes, and express array index, map index or attribute of struct
+	// For example: Literal{Value: "x", Index: "a"} generates x["a"]
+	//              Literal{Value: "x", Index: 1} generates x[1]
+	//              Literal{Value: "x", Attribute: "y"} generates x.y
+	//              Literal{Value: "x", Attribute: Literal{Value: "y", Index: 1}} generates x.y[1]
+	// 				Literal{Value: "name"} generates "name" (string with quotes)
+	// 				Literal{Value: true} generates true (boolen value, no quotes)
+	// 				Literal{Value: 1} generates 1 (int value, no quotes)
+	// 				Literal{Value: 1.1} generates 1.1 (float value, no quotes)
+	Literal interface{} `yaml:"lit,omitempty"`
 
 	// Other constructs to simplify code generation
 	MapLookup *MapLookup     `yaml:"lookup,omitempty"`
@@ -208,8 +278,13 @@ type PreDecrement struct {
 }
 
 type VariableCreate struct {
-	Name string `yaml:"name"`
-	Type string `yaml:"type"`
+	// Names can take single string or array of strings
+	Names       interface{} `yaml:"name"`
+	Type        string      `yaml:"type"`
+	ModuleName  string      `yaml:"module,omitempty"`
+	IsReference bool        `yaml:"reference,omitempty"`
+	// Value can be anything, string or array of strings or code elements
+	Values interface{} `yaml:"val,omitempty"`
 }
 
 // Supporting structs
@@ -300,14 +375,6 @@ type StructCreation struct {
 	StructType  string      `yaml:"struct_type"`
 	KeyValues   KeyValues   `yaml:"values"`
 	NoReference bool        `yaml:"no_ref,omitempty"`
-}
-
-type GoRoutine struct {
-	FunctionCall *CodeElement `yaml:"call"`
-}
-
-type DeferRoutine struct {
-	FunctionCall *CodeElement `yaml:"call"`
 }
 
 type FunctionCall struct {
@@ -632,7 +699,21 @@ func bodyWithBreakAndContinue(body []*CodeElement, b interface{}, c interface{})
 }
 
 func (vc *VariableCreate) ToCode() string {
-	return fmt.Sprintf("var %s %s", vc.Name, vc.Type)
+	typeName := vc.Type
+	if vc.ModuleName != "" {
+		typeName = fmt.Sprintf("%s.%s", vc.ModuleName, typeName)
+	}
+	if vc.IsReference {
+		typeName = fmt.Sprintf("*%s", typeName)
+	}
+
+	valueName := resolveStringOrCodeElement(vc.Values, ", ")
+	if valueName != "" {
+		valueName = fmt.Sprintf(" = %s", valueName)
+	}
+
+	names := resolveStringOrCodeElement(vc.Names, ", ")
+	return fmt.Sprintf("var %s %s%s", names, typeName, valueName)
 }
 
 // Implementation of ToCode for each struct
@@ -758,29 +839,22 @@ func (kvs KeyValues) ToCode() string {
 	kvCodeParts := make([]string, len(kvs))
 	for i, kv := range kvs {
 		kvCode := kv.ToCode()
-		kvCodeParts[i] = kvCode
+		kvCodeParts[i] = fmt.Sprintf("%s,\n", kvCode)
 	}
-	return strings.Join(kvCodeParts, "\n")
+	return strings.Join(kvCodeParts, "")
 }
 
 func (sc *StructCreation) ToCode() string {
-	fieldsCode := sc.KeyValues.ToCode()
+	leftSide := resolveOutputs(sc.Output, sc.NewOutput)
+	fieldsCode := IndentCode(sc.KeyValues.ToCode(), 1)
 	typeName := sc.StructType
 	if sc.ModuleName != "" {
 		typeName = fmt.Sprintf("%s.%s", sc.ModuleName, sc.StructType)
 	}
-	if sc.NoReference {
-		return fmt.Sprintf("%s{%s}", typeName, fieldsCode)
+	if !sc.NoReference {
+		typeName = fmt.Sprintf("&%s", typeName)
 	}
-	return fmt.Sprintf("&%s{%s}", typeName, fieldsCode)
-}
-
-func (gr *GoRoutine) ToCode() string {
-	return fmt.Sprintf("go %s()", gr.FunctionCall.ToCode())
-}
-
-func (dr *DeferRoutine) ToCode() string {
-	return fmt.Sprintf("defer %s()", dr.FunctionCall.ToCode())
+	return fmt.Sprintf("%s%s{\n%s}", leftSide, typeName, fieldsCode)
 }
 
 func resolveOutputs(output, newOutput interface{}) string {
@@ -860,9 +934,13 @@ func (l *Literal) ToCode() string {
 				attributes = append(attributes, resolveLiteral(attr))
 			}
 		} else {
-			attributes = append(attributes, resolveLiteral(l.Attribute))
+			if reflect.TypeOf(l.Attribute).Kind() == reflect.String {
+				attributes = append(attributes, l.Attribute.(string))
+			} else {
+				attributes = append(attributes, resolveLiteral(l.Attribute))
+			}
 		}
-		return fmt.Sprintf("%s%s", resolveStringOrCodeElement(l.Value, ", "), strings.Join(attributes, "."))
+		return fmt.Sprintf("%s.%s", resolveStringOrCodeElement(l.Value, ", "), strings.Join(attributes, "."))
 	}
 	if l.Type == "" {
 		return resolveLiteral(l.Value)
@@ -1197,8 +1275,6 @@ if {{template "code" .Condition}} {
 {{if .RepeatN}}{{.RepeatN.ToCode}}{{end}}
 {{if .Iterate}}{{.Iterate.ToCode}}{{end}}
 {{if .StructCreation}}{{.StructCreation.ToCode}}{{end}}
-{{if .GoRoutine}}{{.GoRoutine.ToCode}}{{end}}
-{{if .DeferRoutine}}{{.DeferRoutine.ToCode}}{{end}}
 {{if .FunctionCall}}{{.FunctionCall.ToCode}}{{end}}
 {{if .ErrorHandler}}{{.ErrorHandler.ToCode}}{{end}}
 {{if .CleanningHandler}}{{.CleanningHandler.ToCode}}{{end}}
