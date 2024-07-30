@@ -282,47 +282,53 @@ func GenerateDeleteConfigs(modelName string, deleteConfig []defs.AccessConfig) (
 	return queries, functions, reqs, nil
 }
 
-func SetupDatabaseFunction(dataConf []defs.DataConfig) *golang.Function {
+func SetupDatabaseFunction(dataConf defs.DataConfig) (*golang.Function, error) {
 
-	dsn := fmt.Sprintf("user=%s password=%s dbname=%s port=%d host=%s", "postgres", "postgres", "postgres", 5432, "localhost")
-	fmt.Println(dsn)
+	if dataConf.DatabaseConfig == nil {
+		return nil, fmt.Errorf("dataconf is missing connection config")
+	}
+	dbConf := dataConf.DatabaseConfig
+	if dbConf.DriverName == "" {
+		return nil, fmt.Errorf("dataconf is missing driver")
+	}
+
+	if dbConf.DBName == "" || dbConf.Host == "" || dbConf.Port == 0 || dbConf.UserName == "" || dbConf.Password == "" {
+		return nil, fmt.Errorf("dataconf is missing connection details dbname: [%s], host: [%s], port: [%d], username: [%s], password: [%s]",
+			dbConf.DBName, dbConf.Host, dbConf.Port, dbConf.UserName, dbConf.Password)
+	}
+
+	if dbConf.ConnectionConfig == nil {
+		return nil, fmt.Errorf("dataconf is missing connection config")
+	}
+
+	if dbConf.ConnectionPoolConfig == nil {
+		return nil, fmt.Errorf("dataconf is missing connection pool config")
+	}
+
+	dsn := fmt.Sprintf("user=%s password=%s dbname=%s port=%d host=%s",
+		dbConf.UserName, dbConf.Password, dbConf.DBName, dbConf.Port, dbConf.Host)
 	fn := golang.Function{}
 	fn.FunctionCode()
 	returnParams := typeOnlyParamsCE("error")
 	return &golang.Function{
 		Name:    "SetupDatabase",
-		Imports: []string{"database/sql", "github.com/lib/pq"},
+		Imports: []string{"database/sql", "github.com/lib/pq", "time"},
 		Returns: returnParams,
 		Body: golang.CodeElements{
 			{
-				StructCreation: &golang.StructCreation{
-					NewOutput:  "cfg",
-					ModuleName: "pg",
-					StructType: "Config",
-					KeyValues: golang.KeyValues{
-						{Key: "User", Value: "postgres"},
-						{Key: "Password", Value: "<PASSWORD>"},
-						{Key: "Database", Value: "postgres"},
-						{Key: "Port", Value: 5432},
-						{Key: "Host", Value: "localhost"},
-					},
-				},
-			},
-			{
 				NewAssign: &golang.NewAssignment{
-					Left:  []string{"driverName", "dsn"},
-					Right: golang.NewLits("postgres", dsn),
+					Left:  []string{"driverName", "dsn", "idleConns", "connMaxLifetime"},
+					Right: golang.NewLits(dbConf.DriverName, dsn, dbConf.ConnectionPoolConfig.MaxIdleConns, dbConf.ConnectionConfig.MaxLifetimeMins),
 				},
 			},
 			goutils.FCEHNewOutReceiverArgsCE([]string{"db", "err"}, "sql", "Open",
 				[]string{"driverName", "dsn"}, goutils.EHError("err")),
 
 			goutils.FCEHOutReceiverArgsCE([]string{"err"}, "db", "Ping", nil, goutils.EHError("err")),
-			goutils.FCEHReceiverArgsCE("db", "SetMaxIdleConns", 10, goutils.EHError("err")),
-			goutils.FCEHReceiverArgsCE("db", "SetConnMaxLifetime", &golang.Mul{BinaryOp: golang.BinaryOp{
-				Left: &golang.Literal{Value: "time", Attribute: "Minute"}, Right: 30}},
-				goutils.EHError("err")),
+			goutils.FCReceiverArgsCE("db", "SetMaxIdleConns", "idleConns"),
+			goutils.FCReceiverArgsCE("db", "SetConnMaxLifetime", &golang.Mul{BinaryOp: golang.BinaryOp{
+				Left: &golang.Literal{Value: "time", Attribute: "Minute"}, Right: "connMaxLifetime"}}),
 			returnValuesCE("nil"),
 		},
-	}
+	}, nil
 }

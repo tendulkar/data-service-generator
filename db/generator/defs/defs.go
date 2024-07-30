@@ -67,11 +67,27 @@ type Attribute struct {
 }
 
 type ConnectionConfig struct {
-	DriverName string `yaml:"driver_name"`
-	DBConfigId string `yaml:"db_config_id"`
+	IdleTimeoutSecs int `yaml:"idle_timeout_secs"`
+	MaxLifetimeMins int `yaml:"conn_max_lifetime_secs"`
+}
+
+type ConnectionPoolConfig struct {
+	MaxIdleConns int `yaml:"max_idle_conns"`
+}
+
+type DatabaseConfig struct {
+	DriverName           string                `yaml:"driver_name"`
+	DBConfigId           string                `yaml:"db_config_id"`
+	UserName             string                `yaml:"user_name"`
+	Password             string                `yaml:"password"`
+	Host                 string                `yaml:"host"`
+	Port                 int                   `yaml:"port"`
+	DBName               string                `yaml:"db_name"`
+	ConnectionConfig     *ConnectionConfig     `yaml:"conn_config,omitempty"`
+	ConnectionPoolConfig *ConnectionPoolConfig `yaml:"conn_pool_config,omitempty"`
 }
 
 type DataConfig struct {
-	Models           []ModelConfig     `yaml:"models"`
-	ConnectionConfig *ConnectionConfig `yaml:"connection_config,omitempty"`
+	Models         []ModelConfig   `yaml:"models"`
+	DatabaseConfig *DatabaseConfig `yaml:"connection_config,omitempty"`
 }
