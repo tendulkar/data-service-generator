@@ -362,8 +362,9 @@ type IterateElement struct {
 }
 
 type KeyValue struct {
-	Key   string      `yaml:"key"`
-	Value interface{} `yaml:"value"`
+	Key      string      `yaml:"key"`
+	Value    interface{} `yaml:"value"`
+	Variable interface{} `yaml:"var,omitempty"`
 }
 
 type KeyValues []*KeyValue
@@ -831,7 +832,12 @@ func (it *IterateElement) ToCode() string {
 }
 
 func (kv *KeyValue) ToCode() string {
-	value := resolveLiteral(kv.Value)
+	value := ""
+	if kv.Value != nil {
+		value = resolveLiteral(kv.Value)
+	} else if kv.Variable != nil {
+		value = resolveStringOrCodeElement(kv.Variable, ", ")
+	}
 	return fmt.Sprintf("%s: %s", kv.Key, value)
 }
 

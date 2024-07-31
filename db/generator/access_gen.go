@@ -63,13 +63,7 @@ func readTypeAndValidations(attributeId int64) (string, *golang.GoType, []*model
 
 // Generate Model struct for a given model
 //
-//	Example: User {
-//	  ID int `db:"id"`
-//	  FullName string `db:"full_name"`
-//	  Email string `db:"email"`
-//	}
-//
-//	Example 2: type Product struct {
+//	Example: type Product struct {
 //		Sku         string  `db:"sku"`
 //		ProductName string  `db:"product_name"`
 //		Description string  `db:"description"`
@@ -96,7 +90,38 @@ func generateModel(config *defs.ModelConfig) ([]*golang.Struct, []*golang.Functi
 	}
 
 	modelStruct := golang.GenerateStructForDataModel(config.Model.Name, nameWithTypes, false, false, true)
-	models = append(models, modelStruct)
+	modelDBStruct := &golang.Struct{
+		Name: config.Model.Name + "_DB",
+		Fields: []*golang.Field{
+			golang.NewField("db", "*sql.DB"),
+			golang.NewField("preparedCache", "map[string]*sql.Stmt"),
+		},
+		Imports: []string{"database/sql"},
+	}
+	models = append(models, modelStruct, modelDBStruct)
+
+	createModelDBSt := &golang.StructCreation{
+		Name: config.Model.Name + "_DB",
+		KeyValues: golang.KeyValues{
+			{Key: "db", Value: "db"},
+			{Key: "preparedCache", Value: "preparedCache"},
+		},
+		Fields: []*golang.Field{
+			golang.NewField("db", "*sql.DB"),
+			golang.NewField("preparedCache", "map[string]*sql.Stmt"),
+		},
+	}
+
+	newModelDBFn := &golang.Function{
+		Name: "New" + config.Model.Name + "_DB",
+		Parameters: []*golang.Parameter{
+			golang.NewParameter("db", "*sql.DB"),
+			golang.NewParameter("preparedCache", "map[string]*sql.Stmt"),
+		},
+		Returns: golang.NewReturnTypes("*"+config.Model.Name+"_DB"),
+		Body: []*golang.CodeElement{golang.NewReturnStatement()}
+		Body:    golang.NewGoCode("return &" + config.Model.Name + "_DB{db: db, preparedCache: make(map[string]*sql.Stmt)}"),
+	}
 	return models, functions, nil
 }
 
@@ -131,15 +156,17 @@ func Generate(config defs.ModelConfig) (*golang.GoSourceFile, error) {
 	allStructs = append(allStructs, models...)
 	allFunctions = append(allFunctions, fns...)
 
-	// PrepareStmt function will prepare all queries for a given model
-	prepareFn := PrepareStmtFunction(modelName, allQueries)
-	allFunctions = append(allFunctions, prepareFn)
-
 	// Generate methods for SELECT, UPDATE, INSERT, INSERT OR UPDATE, DELETE for a given model
 	err = geneateAllAccessMethods(config, modelName, &allQueries, &allFunctions, &allStructs)
 	if err != nil {
 		return nil, err
 	}
+
+	// PrepareStmt function will prepare all queries for a given model
+	// Make sure allQueries have been populated,
+	// so don't move the PrepareStmtFunction call to the above geneateAllAccessMethods
+	prepareFn := PrepareStmtFunction(modelName, allQueries)
+	allFunctions = append(allFunctions, prepareFn)
 
 	goSrc := &golang.GoSourceFile{
 		Package:      "database",
