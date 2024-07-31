@@ -9,16 +9,15 @@ type NameWithType struct {
 	Type *GoType
 }
 
-func GenerateStructForJSON(modelName string, nameWithTypes []NameWithType) *Struct {
+func GenerateStructForDataModel(modelName string, nameWithTypes []NameWithType, addJsonTag bool, addYamlTag bool, addDBTag bool) *Struct {
 	modelName = ToPascalCase(modelName)
 	fields := make([]*Field, 0, len(nameWithTypes))
 	for _, nameWithType := range nameWithTypes {
 		fieldName := ToPascalCase(nameWithType.Name)
-		fields = append(fields, &Field{Name: fieldName, Type: nameWithType.Type, AddJsonTag: true})
+		fields = append(fields, &Field{Name: fieldName, Type: nameWithType.Type, AddJsonTag: addJsonTag, AddYamlTag: addYamlTag, AddDBTag: addDBTag})
 	}
-	base.LOG.Info("Generating struct for JSON:", "model", modelName, "fields", fields)
+	base.LOG.Debug("Generating struct for JSON:", "model", modelName, "fields", fields)
 	return &Struct{Name: modelName, Fields: fields}
-
 }
 
 func FunctionCallCE(newOutput, output interface{}, receiver, functionName string, args interface{},

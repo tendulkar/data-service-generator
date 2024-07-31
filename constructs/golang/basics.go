@@ -207,6 +207,7 @@ type Field struct {
 	Tag        string  `yaml:"tag,omitempty"`
 	AddJsonTag bool    `yaml:"add_json_tag,omitempty"`
 	AddYamlTag bool    `yaml:"add_yaml_tag,omitempty"`
+	AddDBTag   bool    `yaml:"add_db_tag,omitempty"`
 }
 
 // Struct represents a Go struct with member functions.
@@ -220,6 +221,35 @@ type Struct struct {
 	Dependencies []Dependency `yaml:"dependencies,omitempty"`
 }
 
+func generateFieldTag(field *Field) string {
+	tagName := ""
+	fieldNameSnakeCase := ToSnakeCase(field.Name)
+	if field.AddJsonTag {
+		tagName = fmt.Sprintf("json:\"%s\"", fieldNameSnakeCase)
+	}
+	if field.AddYamlTag {
+		if tagName != "" {
+			tagName = fmt.Sprintf("%s yaml:\"%s\"", tagName, fieldNameSnakeCase)
+		} else {
+			tagName = fmt.Sprintf("yaml:\"%s\"", fieldNameSnakeCase)
+		}
+	}
+
+	if field.AddDBTag {
+		if tagName != "" {
+			tagName = fmt.Sprintf("%s db:\"%s\"", tagName, fieldNameSnakeCase)
+		} else {
+			tagName = fmt.Sprintf("db:\"%s\"", fieldNameSnakeCase)
+		}
+	}
+
+	if tagName != "" {
+		tagName = fmt.Sprintf("%s`%s`", Indent, tagName)
+	}
+
+	return tagName
+}
+
 // StructCode generates the Go code for the struct, including its member functions.
 func (s Struct) StructCode() (string, map[string]bool) {
 	fieldStrs := make([]string, len(s.Fields))
@@ -228,20 +258,7 @@ func (s Struct) StructCode() (string, map[string]bool) {
 		if !strings.HasPrefix(typeName, "*") && field.Type.Source != "" { // Assume non-primitive types need pointers
 			typeName = "*" + typeName
 		}
-		tagName := ""
-		if field.AddJsonTag {
-			tagName = fmt.Sprintf("json:\"%s\"", ToSnakeCase(field.Name))
-		}
-		if field.AddYamlTag {
-			if tagName != "" {
-				tagName = fmt.Sprintf("%s yaml:\"%s\"", tagName, ToSnakeCase(field.Name))
-			} else {
-				tagName = fmt.Sprintf("yaml:\"%s\"", ToSnakeCase(field.Name))
-			}
-		}
-		if tagName != "" {
-			tagName = fmt.Sprintf("%s`%s`", Indent, tagName)
-		}
+		tagName := generateFieldTag(field)
 		fieldStrs[i] = fmt.Sprintf("%s%s %s%s", Indent, field.Name, typeName, tagName)
 	}
 

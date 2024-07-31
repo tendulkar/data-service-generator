@@ -61,6 +61,21 @@ func readTypeAndValidations(attributeId int64) (string, *golang.GoType, []*model
 	return attribute.Name, goType, validations, nil
 }
 
+// Generate Model struct for a given model
+//
+//	Example: User {
+//	  ID int `db:"id"`
+//	  FullName string `db:"full_name"`
+//	  Email string `db:"email"`
+//	}
+//
+//	Example 2: type Product struct {
+//		Sku         string  `db:"sku"`
+//		ProductName string  `db:"product_name"`
+//		Description string  `db:"description"`
+//		Price       float64 `db:"price"`
+//	}
+
 func generateModel(config *defs.ModelConfig) ([]*golang.Struct, []*golang.Function, error) {
 
 	models := make([]*golang.Struct, 0, 1)
@@ -80,7 +95,7 @@ func generateModel(config *defs.ModelConfig) ([]*golang.Struct, []*golang.Functi
 		})
 	}
 
-	modelStruct := golang.GenerateStructForJSON(config.Model.Name, nameWithTypes)
+	modelStruct := golang.GenerateStructForDataModel(config.Model.Name, nameWithTypes, false, false, true)
 	models = append(models, modelStruct)
 	return models, functions, nil
 }
@@ -105,7 +120,10 @@ func Generate(config defs.ModelConfig) (*golang.GoSourceFile, error) {
 	allQueries := make([]NamedQuery, 0)
 	allFunctions := make([]*golang.Function, 0)
 	allStructs := make([]*golang.Struct, 0)
+	caser := cases.Title(language.English)
+	modelName := caser.String(config.Model.Name)
 
+	// Generate Model struct for a given model, for example `type User struct {<fields with db tags>}`
 	models, fns, err := generateModel(&config)
 	if err != nil {
 		return nil, err
@@ -113,13 +131,11 @@ func Generate(config defs.ModelConfig) (*golang.GoSourceFile, error) {
 	allStructs = append(allStructs, models...)
 	allFunctions = append(allFunctions, fns...)
 
-	caser := cases.Title(language.English)
-	modelName := caser.String(config.Model.Name)
-
 	// PrepareStmt function will prepare all queries for a given model
 	prepareFn := PrepareStmtFunction(modelName, allQueries)
 	allFunctions = append(allFunctions, prepareFn)
 
+	// Generate methods for SELECT, UPDATE, INSERT, INSERT OR UPDATE, DELETE for a given model
 	err = geneateAllAccessMethods(config, modelName, &allQueries, &allFunctions, &allStructs)
 	if err != nil {
 		return nil, err
@@ -173,14 +189,14 @@ func generateParamsStruct(paramRefs []defs.ParameterRef, name string) *golang.St
 		})
 	}
 
-	return golang.GenerateStructForJSON(fmt.Sprintf("%sParams", name), nameWithTypes)
+	return golang.GenerateStructForDataModel(fmt.Sprintf("%sParams", name), nameWithTypes, true, false, false)
 }
 
 func generateRequestStruct(name string, paramStructName string) *golang.Struct {
 	namedWithTypes := []golang.NameWithType{
 		{Name: "Params", Type: &golang.GoType{Name: paramStructName}},
 	}
-	return golang.GenerateStructForJSON(fmt.Sprintf("%sRequest", name), namedWithTypes)
+	return golang.GenerateStructForDataModel(fmt.Sprintf("%sRequest", name), namedWithTypes, true, false, false)
 }
 
 func generateAccessStructs(paramRef []defs.ParameterRef, name string) []*golang.Struct {
@@ -189,6 +205,48 @@ func generateAccessStructs(paramRef []defs.ParameterRef, name string) []*golang.
 	return []*golang.Struct{paramStruct, reqStruct}
 }
 
+// GenerateFindConfigs will generate all SELECT queries for a given model
+// It generates find function, and one helper function for reading params from request to bind values to query
+// It generates 2 structs for params and request, request is input (arg) to find function, and params is part of request
+//
+// Example:
+//
+//		type GetProductByIdparams struct {
+//			Id interface{} `json:"id"`
+//		}
+//
+//		type GetProductByIdrequest struct {
+//			Params GetProductByIdparams `json:"params"`
+//		}
+//
+//		func GetProductByIDReadParams(params GetProductByIDParams) ([]interface{}, error) {
+//	        var values []interface{}
+//	        values = append(values, params.id)
+//	        return values, nil
+//		}
+//
+//	    func GetProductByID(ctx context.Context, db *sql.DB, requestParams GetProductByIDParams) (results []Product, err error) {
+//			stmt := db.preparedCache["GetProductByID"]
+//			values, err := GetProductByIDParseParams(requestParams)
+//			if err != nil {
+//					return nil, err
+//			}
+//			rows, err := stmt.Query(values...)
+//			if err != nil {
+//					return nil, err
+//			}
+//			defer rows.Close()
+//			var results []Product
+//			for rows.Next() {
+//					var item Product
+//					scanErr := rows.Scan(&item.id, &item.name, &item.price, &item.quantity)
+//					if scanErr != nil {
+//							return nil, scanErr
+//					}
+//					results = append(results, item)
+//			}
+//			return results, nil
+//	}
 func GenerateFindConfigs(modelName string, findConfig []defs.AccessConfig) ([]NamedQuery, []*golang.Function, []*golang.Struct, error) {
 
 	functions := make([]*golang.Function, 0, len(findConfig))
@@ -213,6 +271,10 @@ func GenerateFindConfigs(modelName string, findConfig []defs.AccessConfig) ([]Na
 
 }
 
+// GenerateUpdateConfigs will generate all UPDATE queries for a given model
+// Similar to GenerateFindConfigs
+// It generates Update function, and one helper function for reading params from request to bind values to query
+// It generates 2 structs for params and request, request is input (arg) to Update function, and params is part of request
 func GenerateUpdateConfigs(modelName string, updateConfig []defs.AccessConfig) ([]NamedQuery, []*golang.Function, []*golang.Struct, error) {
 
 	functions := make([]*golang.Function, 0, len(updateConfig))
@@ -237,6 +299,10 @@ func GenerateUpdateConfigs(modelName string, updateConfig []defs.AccessConfig) (
 
 }
 
+// GenerateAddConfigs will generate all INSERT queries for a given model
+// Similar to GenerateFindConfigs
+// It generates Add(INSERT) function, and one helper function for reading params from request to bind values to query
+// It generates 2 structs for params and request, request is input (arg) to Add function, and params is part of request
 func GenerateAddConfigs(modelName string, addConfig []defs.AccessConfig) ([]NamedQuery, []*golang.Function, []*golang.Struct, error) {
 	functions := make([]*golang.Function, 0, len(addConfig))
 	reqs := make([]*golang.Struct, 0, len(addConfig))
@@ -256,6 +322,10 @@ func GenerateAddConfigs(modelName string, addConfig []defs.AccessConfig) ([]Name
 
 }
 
+// GenerateAddOrReplaceConfigs will generate all INSERT OR UPDATE queries for a given model
+// Similar to GenerateFindConfigs
+// It generates AddOrReplace(INSERT OR UPDATE) function, and one helper function for reading params from request to bind values to query
+// It generates 2 structs for params and request, request is input (arg) to AddOrReplace function, and params is part of request
 func GenerateAddOrReplaceConfigs(modelName string, addOrReplaceConfig []defs.AccessConfig) ([]NamedQuery, []*golang.Function, []*golang.Struct, error) {
 	functions := make([]*golang.Function, 0, len(addOrReplaceConfig))
 	reqs := make([]*golang.Struct, 0, len(addOrReplaceConfig))
@@ -274,6 +344,41 @@ func GenerateAddOrReplaceConfigs(modelName string, addOrReplaceConfig []defs.Acc
 	return queries, functions, reqs, nil
 }
 
+// GenerateDeleteConfigs will generate all DELETE queries for a given model
+// Similar to GenerateFindConfigs
+// It generates Delete function, and one helper function for reading params from request to bind values to query
+// It generates 2 structs for params and request, request is input (arg) to Delete function, and params is part of request
+//
+//	 type DeleteProductParams struct {
+//		Id interface{} `json:"id"`
+//	}
+//
+//	type DeleteProductRequest struct {
+//			Params DeleteProductParams `json:"params"`
+//	}
+//
+//	func DeleteProductReadParams(params DeleteProductParams) ([]interface{}, error) {
+//		var values []interface{}
+//		values = append(values, params.id)
+//		return values, nil
+//	}
+//
+//	func DeleteProduct(ctx context.Context, db *sql.DB, requestParams DeleteProductParams) (int64, error) {
+//		stmt := db.preparedCache["DeleteProduct"]
+//		values, err := DeleteProductParseParams(requestParams)
+//		if err != nil {
+//				return int64(0), err
+//		}
+//		result, err := stmt.Exec(values...)
+//		if err != nil {
+//				return int64(0), err
+//		}
+//		rowsAffected, err := result.RowsAffected()
+//		if err != nil {
+//				return int64(0), err
+//		}
+//		return rowsAffected, nil
+//	}
 func GenerateDeleteConfigs(modelName string, deleteConfig []defs.AccessConfig) ([]NamedQuery, []*golang.Function, []*golang.Struct, error) {
 	functions := make([]*golang.Function, 0, len(deleteConfig))
 	reqs := make([]*golang.Struct, 0, len(deleteConfig))
