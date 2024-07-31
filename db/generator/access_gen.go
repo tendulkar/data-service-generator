@@ -85,6 +85,21 @@ func generateModel(config *defs.ModelConfig) ([]*golang.Struct, []*golang.Functi
 	return models, functions, nil
 }
 
+type AccessFnGenerator func(modelName string, config []defs.AccessConfig) ([]NamedQuery, []*golang.Function, []*golang.Struct, error)
+
+func genAccessFn(modelName string, config []defs.AccessConfig, accessFn AccessFnGenerator,
+	allQueries *[]NamedQuery, allFunctions *[]*golang.Function, allStructs *[]*golang.Struct) error {
+
+	queries, accessFns, structs, err := accessFn(modelName, config)
+	if err != nil {
+		return err
+	}
+	*allQueries = append(*allQueries, queries...)
+	*allFunctions = append(*allFunctions, accessFns...)
+	*allStructs = append(*allStructs, structs...)
+	return nil
+}
+
 func Generate(config defs.ModelConfig) (*golang.GoSourceFile, error) {
 
 	allQueries := make([]NamedQuery, 0)
@@ -100,46 +115,28 @@ func Generate(config defs.ModelConfig) (*golang.GoSourceFile, error) {
 
 	caser := cases.Title(language.English)
 	modelName := caser.String(config.Model.Name)
-
-	queries, accessFns, structs, err := GenerateFindConfigs(modelName, config.Access.Find)
-	if err != nil {
-		return nil, err
+	accessMethods := []AccessFnGenerator{
+		GenerateFindConfigs,
+		GenerateUpdateConfigs,
+		GenerateAddConfigs,
+		GenerateAddOrReplaceConfigs,
+		GenerateDeleteConfigs,
 	}
-	allQueries = append(allQueries, queries...)
-	allFunctions = append(allFunctions, accessFns...)
-	allStructs = append(allStructs, structs...)
 
-	queries, accessFns, structs, err = GenerateUpdateConfigs(modelName, config.Access.Update)
-	if err != nil {
-		return nil, err
+	accessConfigs := [][]defs.AccessConfig{
+		config.Access.Find,
+		config.Access.Update,
+		config.Access.Add,
+		config.Access.AddOrReplace,
+		config.Access.Delete,
 	}
-	allQueries = append(allQueries, queries...)
-	allFunctions = append(allFunctions, accessFns...)
-	allStructs = append(allStructs, structs...)
 
-	queries, accessFns, structs, err = GenerateAddConfigs(modelName, config.Access.Add)
-	if err != nil {
-		return nil, err
+	for i, accessMethod := range accessMethods {
+		err = genAccessFn(modelName, accessConfigs[i], accessMethod, &allQueries, &allFunctions, &allStructs)
+		if err != nil {
+			return nil, err
+		}
 	}
-	allQueries = append(allQueries, queries...)
-	allFunctions = append(allFunctions, accessFns...)
-	allStructs = append(allStructs, structs...)
-
-	queries, accessFns, structs, err = GenerateAddOrReplaceConfigs(modelName, config.Access.AddOrReplace)
-	if err != nil {
-		return nil, err
-	}
-	allQueries = append(allQueries, queries...)
-	allFunctions = append(allFunctions, accessFns...)
-	allStructs = append(allStructs, structs...)
-
-	queries, accessFns, structs, err = GenerateDeleteConfigs(modelName, config.Access.Delete)
-	if err != nil {
-		return nil, err
-	}
-	allQueries = append(allQueries, queries...)
-	allFunctions = append(allFunctions, accessFns...)
-	allStructs = append(allStructs, structs...)
 
 	prepareFn := PrepareStmtFunction(modelName, allQueries)
 	allFunctions = append(allFunctions, prepareFn)
