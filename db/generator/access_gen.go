@@ -115,6 +115,30 @@ func Generate(config defs.ModelConfig) (*golang.GoSourceFile, error) {
 
 	caser := cases.Title(language.English)
 	modelName := caser.String(config.Model.Name)
+
+	// PrepareStmt function will prepare all queries for a given model
+	prepareFn := PrepareStmtFunction(modelName, allQueries)
+	allFunctions = append(allFunctions, prepareFn)
+
+	err = geneateAllAccessMethods(config, modelName, &allQueries, &allFunctions, &allStructs)
+	if err != nil {
+		return nil, err
+	}
+
+	goSrc := &golang.GoSourceFile{
+		Package:      "database",
+		Structs:      allStructs,
+		Functions:    allFunctions,
+		InitFunction: nil,
+		Variables:    nil,
+		Constants:    nil}
+
+	return goSrc, nil
+}
+
+// All access methods for a given model (Find, Update, Add, AddOrReplace and Delete),
+// will do query on database with above prepared statements (SELECT, UPDATE, INSERT, INSERT OR UPDATE, DELETE)
+func geneateAllAccessMethods(config defs.ModelConfig, modelName string, allQueries *[]NamedQuery, allFunctions *[]*golang.Function, allStructs *[]*golang.Struct) error {
 	accessMethods := []AccessFnGenerator{
 		GenerateFindConfigs,
 		GenerateUpdateConfigs,
@@ -132,23 +156,12 @@ func Generate(config defs.ModelConfig) (*golang.GoSourceFile, error) {
 	}
 
 	for i, accessMethod := range accessMethods {
-		err = genAccessFn(modelName, accessConfigs[i], accessMethod, &allQueries, &allFunctions, &allStructs)
+		err := genAccessFn(modelName, accessConfigs[i], accessMethod, allQueries, allFunctions, allStructs)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
-
-	prepareFn := PrepareStmtFunction(modelName, allQueries)
-	allFunctions = append(allFunctions, prepareFn)
-	goSrc := &golang.GoSourceFile{
-		Package:      "database",
-		Structs:      allStructs,
-		Functions:    allFunctions,
-		InitFunction: nil,
-		Variables:    nil,
-		Constants:    nil}
-
-	return goSrc, nil
+	return nil
 }
 
 func generateParamsStruct(paramRefs []defs.ParameterRef, name string) *golang.Struct {
