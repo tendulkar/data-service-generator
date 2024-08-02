@@ -63,9 +63,10 @@ type CodeElement struct {
 	// Example Assignment{Left: "x", Right: Add{Left: "y", Right: "z"}} will generate `x = y + z`
 	// Example Assigment{Left: Literal{Value: "x", Attribute: "a"}, Right: Add{Left: "y", Right: "z"}} will generate `x["a"] = y + z`
 	// Example Assigment{Left: Literal{Value: "x", Attribute: 1}, Right: Add{Left: "y", Right: "z"}} will generate `x[1] = y + z`
-	Variable  *VariableCreate `yaml:"var,omitempty"`
-	Assign    *Assignment     `yaml:"assign,omitempty"`
-	NewAssign *NewAssignment  `yaml:"new_assign,omitempty"`
+	Variable  *Variable      `yaml:"var,omitempty"`
+	Constant  *Constant      `yaml:"const,omitempty"`
+	Assign    *Assignment    `yaml:"assign,omitempty"`
+	NewAssign *NewAssignment `yaml:"new_assign,omitempty"`
 
 	// Control structures
 	If         *IfElement  `yaml:"if,omitempty"`
@@ -277,14 +278,23 @@ type PreDecrement struct {
 	UnaryOp `yaml:",inline"`
 }
 
-type VariableCreate struct {
+type Variable struct {
 	// Names can take single string or array of strings
 	Names       interface{} `yaml:"name"`
 	Type        string      `yaml:"type"`
 	ModuleName  string      `yaml:"module,omitempty"`
 	IsReference bool        `yaml:"reference,omitempty"`
 	// Value can be anything, string or array of strings or code elements
-	Values interface{} `yaml:"val,omitempty"`
+	Values    interface{} `yaml:"val,omitempty"`
+	Variables interface{} `yaml:"var,omitempty"`
+}
+
+type Constant struct {
+	// Names can take single string or array of strings
+	Name     string      `yaml:"name"`
+	Type     string      `yaml:"type"`
+	Value    interface{} `yaml:"val,omitempty"`
+	Variable interface{} `yaml:"var,omitempty"`
 }
 
 // Supporting structs
@@ -699,7 +709,7 @@ func bodyWithBreakAndContinue(body []*CodeElement, b interface{}, c interface{})
 	return fmt.Sprintf("%s\n%s%s", bodyCode, Indent, continueCode)
 }
 
-func (vc *VariableCreate) ToCode() string {
+func (vc *Variable) ToCode() string {
 	typeName := vc.Type
 	if vc.ModuleName != "" {
 		typeName = fmt.Sprintf("%s.%s", vc.ModuleName, typeName)
@@ -715,6 +725,18 @@ func (vc *VariableCreate) ToCode() string {
 
 	names := resolveStringOrCodeElement(vc.Names, ", ")
 	return fmt.Sprintf("var %s %s%s", names, typeName, valueName)
+}
+
+func (c *Constant) ToCode() string {
+	typeNameWithSpace := ""
+	if c.Type != "" {
+		typeNameWithSpace = fmt.Sprintf(" %s", c.Type)
+	}
+
+	valueName := resolveStringOrCodeElement(c.Value, ", ")
+	varName := resolveStringOrCodeElement(c.Name, "")
+
+	return fmt.Sprintf("const %s%s = %s", varName, typeNameWithSpace, valueName)
 }
 
 // Implementation of ToCode for each struct
@@ -1270,6 +1292,7 @@ if {{template "code" .Condition}} {
 {{template "Bitwise" .}}
 {{template "Unary" .}}
 {{if .Variable}}{{.Variable.ToCode}}{{end}}
+{{if .Constant}}{{.Constant.ToCode}}{{end}}
 {{if .Assign}}{{assign .Assign}}{{end}}
 {{if .NewAssign}}{{newassign .NewAssign}}{{end}}
 {{if .If}}{{.If.ToCode}}{{end}}

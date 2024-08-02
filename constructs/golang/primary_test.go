@@ -829,7 +829,7 @@ func TestStructCreation_ToCode(t *testing.T) {
 }
 
 func TestVariableCreation_ToCode(t *testing.T) {
-	v := VariableCreate{
+	v := Variable{
 		Names:       "user1",
 		Type:        "User",
 		IsReference: true,

@@ -32,7 +32,7 @@ func TestGenerateFindConfigs(t *testing.T) {
 		},
 	}
 
-	queries, functions, structs, err := GenerateFindConfigs("Product", findConfigs)
+	queries, functions, structs, err := GenerateFindConfigs("Product", "Product_DB", findConfigs)
 	assert.NoError(t, err)
 	assert.NotNil(t, queries)
 	assert.NotNil(t, functions)
@@ -129,7 +129,7 @@ func TestGenerate_Success(t *testing.T) {
 	}
 
 	config.LoadConfig()
-	goSrc, err := Generate(cfg)
+	goSrc, _, err := Generate(cfg)
 	t.Log(goSrc.SourceCode())
 
 	assert.NoError(t, err)
@@ -142,66 +142,187 @@ func TestGenerate_ErrorCase(t *testing.T) {
 		// Populate the necessary fields for testing the error case
 	}
 
-	goSrc, err := Generate(config)
+	goSrc, _, err := Generate(config)
 
 	assert.Nil(t, err)
 	assert.NotNil(t, goSrc)
 	// You can add more specific assertions based on the expected error behavior
 }
 
-func TestSetupDatabaseFunction(t *testing.T) {
-	// Test case 1: Successful setup of the database
-	dataConf := defs.DataConfig{
-		Models: []defs.ModelConfig{{Model: defs.Model{Name: "Product"}}},
-		DatabaseConfig: &defs.DatabaseConfig{
-			DriverName: "postgres",
-			DBConfigId: "default",
-			UserName:   "postgres",
-			Password:   "postgres",
-			Host:       "localhost",
-			Port:       5432,
-			DBName:     "postgres",
-			ConnectionConfig: &defs.ConnectionConfig{
-				MaxLifetimeMins: 30,
+func TestGenerateFamily(t *testing.T) {
+
+	modelNameMaps := modelNameMappings{
+		{ModelName: "Product", ModelStructName: "Product", ModelDBStructName: "Product_DB"},
+		{ModelName: "User", ModelStructName: "User", ModelDBStructName: "User_DB"},
+		{ModelName: "Order", ModelStructName: "Order", ModelDBStructName: "Order_DB"},
+		{ModelName: "OrderItem", ModelStructName: "OrderItem", ModelDBStructName: "OrderItem_DB"},
+		{ModelName: "UserCart", ModelStructName: "UserCart", ModelDBStructName: "UserCart_DB"},
+	}
+
+	familyName := "EcommerceDB"
+
+	stDef, fnDef, vars, err := GenerateFamily(familyName, modelNameMaps)
+	assert.NoError(t, err)
+	assert.NotNil(t, stDef)
+	assert.NotNil(t, fnDef)
+	assert.NotNil(t, vars)
+
+	expectedSrcCode := `package database
+
+var EcommerceDb *ecommerceDb
+
+type ecommerceDb struct {
+	Product   Product
+	User      User
+	Order     Order
+	OrderItem OrderItem
+	UserCart  UserCart
+}
+
+func InitEcommerceDb() error {
+	db, err = SetupDBConnection()
+	if err != nil {
+		return err
+	}
+	stmtMapProduct, err = ProductPrepareStmt()
+	if err != nil {
+		return err
+	}
+	product := &Product_DB{
+		db:            db,
+		preparedCache: stmtMapProduct,
+	}
+	stmtMapUser, err = UserPrepareStmt()
+	if err != nil {
+		return err
+	}
+	user := &User_DB{
+		db:            db,
+		preparedCache: stmtMapUser,
+	}
+	stmtMapOrder, err = OrderPrepareStmt()
+	if err != nil {
+		return err
+	}
+	order := &Order_DB{
+		db:            db,
+		preparedCache: stmtMapOrder,
+	}
+	stmtMapOrderItem, err = OrderItemPrepareStmt()
+	if err != nil {
+		return err
+	}
+	orderItem := &OrderItem_DB{
+		db:            db,
+		preparedCache: stmtMapOrderItem,
+	}
+	stmtMapUserCart, err = UserCartPrepareStmt()
+	if err != nil {
+		return err
+	}
+	userCart := &UserCart_DB{
+		db:            db,
+		preparedCache: stmtMapUserCart,
+	}
+	EcommerceDb = &ecommerceDb{
+		Product:   product,
+		User:      user,
+		Order:     order,
+		OrderItem: orderItem,
+		UserCart:  userCart,
+	}
+	return nil
+}
+`
+	srcFile := golang.GoSourceFile{
+		Package:   "database",
+		Structs:   stDef,
+		Functions: fnDef,
+		Variables: vars,
+	}
+	srcCode, _, err := srcFile.SourceCode()
+	assert.NoError(t, err)
+	t.Log(srcFile.SourceCode())
+	assert.Equal(t, expectedSrcCode, srcCode)
+}
+
+func TestGenerateDB(t *testing.T) {
+	config.LoadConfig()
+
+	dataConfig := &defs.DataConfig{
+		FamilyName:     "EcommerceDB",
+		DatabaseConfig: &defs.DatabaseConfig{}, // Just to avoid error returned by GenerateDB function
+		Models: []defs.ModelConfig{
+			{
+				Model: defs.Model{
+					Name:       "User",
+					Attributes: []int64{2000007, 2000008, 2000009, 2000010},
+				},
+				Access: defs.Access{
+					Find: []defs.AccessConfig{
+						{
+							Name:       "GetUserByID",
+							Attributes: []string{"name", "email", "shopping_address", "billing_address"},
+							Filter: []defs.Filter{{
+								Attribute: "email",
+								Operator:  "=",
+								ParamName: "email",
+							}},
+						},
+					},
+				},
 			},
-			ConnectionPoolConfig: &defs.ConnectionPoolConfig{
-				MaxIdleConns: 10,
+			{
+				Model: defs.Model{
+					Name:       "Product",
+					Attributes: []int64{2000001, 2000002, 2000003, 2000004},
+				},
+				Access: defs.Access{
+					Find: []defs.AccessConfig{
+						{
+							Name:       "GetProductByID",
+							Attributes: []string{"id", "sku", "price"},
+							Filter: []defs.Filter{{
+								Attribute: "sku",
+								Operator:  "=",
+								ParamName: "sku",
+							}},
+						},
+					},
+				},
+			},
+			{
+				Model: defs.Model{
+					Name:       "Order",
+					Attributes: []int64{2000012, 2000013, 2000014, 2000015, 2000016},
+				},
+				Access: defs.Access{
+					Find: []defs.AccessConfig{
+						{
+							Name:       "GetOrderByID",
+							Attributes: []string{"order_date", "order_status", "payment_method", "total_amount"},
+							Filter: []defs.Filter{{
+								Attribute: "order_date",
+								Operator:  "=",
+								ParamName: "order_date",
+							}},
+						},
+					},
+				},
 			},
 		},
 	}
-	expectedImports := []string{"database/sql", "github.com/lib/pq", "time"}
-	expectedReturns := typeOnlyParamsCE("error")
 
-	fn, err := SetupDatabaseFunction(dataConf)
-	fnCode, fnImports := fn.FunctionCode()
-
-	expectedFnCode := `func SetupDatabase() error {
-	driverName, dsn, idleConns, connMaxLifetime := "postgres", "user=postgres password=postgres dbname=postgres port=5432 host=localhost", 10, 30
-	db, err := sql.Open(driverName, dsn)
-	if err != nil {
-		return err
-	}
-	err = db.Ping()
-	if err != nil {
-		return err
-	}
-	db.SetMaxIdleConns(idleConns)
-	db.SetConnMaxLifetime((time.Minute * connMaxLifetime))
-	return nil
-}`
-
-	t.Log(fnCode)
-
+	unitModules, err := GenerateDB(dataConfig)
 	assert.Nil(t, err)
-	assert.Equal(t, expectedFnCode, fnCode)
-	assert.Equal(t, "SetupDatabase", fn.Name)
-	assert.Equal(t, expectedImports, fn.Imports)
-	assert.Equal(t, expectedReturns, fn.Returns)
+	assert.NotNil(t, unitModules)
+	assert.Equal(t, 4, len(unitModules))
+	t.Log(unitModules)
 
-	// Test case 2: Check if the correct imports are present
-	assert.Equal(t, map[string]bool{
-		"database/sql":      true,
-		"github.com/lib/pq": true,
-		"time":              true,
-	}, fnImports)
+	for _, unitModule := range unitModules {
+		t.Log(*unitModule)
+		t.Log(unitModule.GenerateCode("database"))
+	}
+
+	// You can add more specific assertions based on the expected behavior of the GenerateDB function
 }

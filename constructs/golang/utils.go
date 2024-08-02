@@ -11,32 +11,34 @@ type NameWithType struct {
 	Type *GoType
 }
 
-func GenerateStructForDataModel(modelName string, nameWithTypes []NameWithType, addJsonTag bool, addYamlTag bool, addDBTag bool) *Struct {
-	modelName = ToPascalCase(modelName)
+func GenStructForDataModel(modelName string, nameWithTypes []NameWithType, addJsonTag bool, addYamlTag bool, addDBTag bool) *StructDef {
 	fields := make([]*Field, 0, len(nameWithTypes))
 	for _, nameWithType := range nameWithTypes {
 		fieldName := ToPascalCase(nameWithType.Name)
 		fields = append(fields, &Field{Name: fieldName, Type: nameWithType.Type, AddJsonTag: addJsonTag, AddYamlTag: addYamlTag, AddDBTag: addDBTag})
 	}
 	base.LOG.Debug("Generating struct for JSON:", "model", modelName, "fields", fields)
-	return &Struct{Name: modelName, Fields: fields}
+	return &StructDef{Name: modelName, Fields: fields}
 }
 
-func GenerateStructWithNewFunction(structName string, structSuffix string, nameWithTypes []NameWithType, addJsonTag bool, addYamlTag bool, addDBTag bool) (*Struct, *Function) {
+func GenStructWithNewFunction(structName string, nameWithTypes []NameWithType, isPrivateFields bool, addJsonTag bool, addYamlTag bool, addDBTag bool) (*StructDef, *FunctionDef) {
 
 	fields := make([]*Field, 0, len(nameWithTypes))
 	keyValues := make(KeyValues, 0, len(nameWithTypes))
 	fnParams := make([]*Parameter, 0, len(nameWithTypes))
 	for _, nameWithType := range nameWithTypes {
-		fieldName := ToPascalCase(nameWithType.Name)
+		fieldFormatName := ToPascalCase(nameWithType.Name)
 		fieldCamelName := ToCamelCase(nameWithType.Name)
-		fields = append(fields, &Field{Name: fieldName, Type: nameWithType.Type, AddJsonTag: addJsonTag, AddYamlTag: addYamlTag, AddDBTag: addDBTag})
-		keyValues = append(keyValues, &KeyValue{Key: fieldName, Variable: fieldCamelName})
+		if isPrivateFields {
+			fieldFormatName = ToCamelCase(nameWithType.Name)
+		}
+		fields = append(fields, &Field{Name: fieldFormatName, Type: nameWithType.Type, AddJsonTag: addJsonTag, AddYamlTag: addYamlTag, AddDBTag: addDBTag})
+		keyValues = append(keyValues, &KeyValue{Key: fieldFormatName, Variable: fieldCamelName})
 		fnParams = append(fnParams, &Parameter{Name: fieldCamelName, Type: nameWithType.Type})
 	}
 
-	structFormatName := ToPascalCase(structName) + structSuffix
-	st := &Struct{
+	structFormatName := structName
+	st := &StructDef{
 		Name:   structFormatName,
 		Fields: fields,
 	}
@@ -45,7 +47,7 @@ func GenerateStructWithNewFunction(structName string, structSuffix string, nameW
 		StructType: st.Name,
 		KeyValues:  keyValues,
 	}
-	fn := &Function{
+	fn := &FunctionDef{
 		Name:       "New" + structFormatName,
 		Parameters: fnParams,
 		Returns:    NewReturnTypes(fmt.Sprintf("*%s", structFormatName)),
@@ -117,6 +119,14 @@ func NewReturnTypes(types ...string) []*Parameter {
 	return returns
 }
 
-func NewReturnStatement(code CodeBlock) *CodeElement {
+func NewReturnStatement(code ...interface{}) *CodeElement {
 	return &CodeElement{Return: code}
+}
+
+func NewReturnCEs(ces ...*CodeElement) *CodeElement {
+	return &CodeElement{Return: &CodeElement{Steps: ces}}
+}
+
+func NilLit() *Literal {
+	return &Literal{Value: "nil"}
 }

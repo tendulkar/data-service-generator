@@ -12,7 +12,7 @@ func TestFindCodeFunction(t *testing.T) {
 	name := "FindUser"
 	attributes := []string{"id", "name"}
 
-	expectedFnCode := `func FindUser(ctx context.Context, db *sql.DB, requestParams FindUserParams) (results []User, err error) {
+	expectedFnCode := `func FindUser(ctx context.Context, db *User_DB, requestParams FindUserParams) (results []User, err error) {
 	stmt := db.preparedCache["FindUser"]
 	values, err := FindUserParseParams(requestParams)
 	if err != nil {
@@ -35,10 +35,8 @@ func TestFindCodeFunction(t *testing.T) {
 	return results, nil
 }`
 
-	expectedImports := map[string]bool{
-		"database/sql": true,
-	}
-	fn := FindCodeFunction(modelName, name, attributes)
+	expectedImports := map[string]bool{}
+	fn := FindCodeFunction(modelName, "User_DB", name, attributes)
 	fnCode, fnImports := fn.FunctionCode()
 	assert.Equal(t, expectedFnCode, fnCode)
 	assert.Equal(t, expectedImports, fnImports)
@@ -52,7 +50,7 @@ func TestFindCodeFunction(t *testing.T) {
 func TestUpdateCodeFunction(t *testing.T) {
 	name := "UpdateUser"
 
-	expectedFnCode := `func UpdateUser(ctx context.Context, db *sql.DB, requestParams UpdateUserParams) (int64, error) {
+	expectedFnCode := `func UpdateUser(ctx context.Context, db *User_DB, requestParams UpdateUserParams) (int64, error) {
 	stmt := db.preparedCache["UpdateUser"]
 	values, err := UpdateUserParseParams(requestParams)
 	if err != nil {
@@ -69,10 +67,8 @@ func TestUpdateCodeFunction(t *testing.T) {
 	return rowsAffected, nil
 }`
 
-	expectedImports := map[string]bool{
-		"database/sql": true,
-	}
-	fn := UpdateCodeFunction("UpdateUser")
+	expectedImports := map[string]bool{}
+	fn := UpdateCodeFunction("UpdateUser", "User_DB")
 	fnCode, fnImports := fn.FunctionCode()
 	assert.Equal(t, expectedFnCode, fnCode)
 	assert.Equal(t, expectedImports, fnImports)
@@ -86,7 +82,7 @@ func TestUpdateCodeFunction(t *testing.T) {
 func TestAddCodeFunction(t *testing.T) {
 	name := "AddUser"
 
-	expectedFnCode := `func AddUser(ctx context.Context, db *sql.DB, requestParams AddUserParams) (int64, error) {
+	expectedFnCode := `func AddUser(ctx context.Context, db *User_DB, requestParams AddUserParams) (int64, error) {
 	stmt := db.preparedCache["AddUser"]
 	values, err := AddUserParseParams(requestParams)
 	if err != nil {
@@ -100,10 +96,8 @@ func TestAddCodeFunction(t *testing.T) {
 	return id, nil
 }`
 
-	expectedImports := map[string]bool{
-		"database/sql": true,
-	}
-	fn := AddCodeFunction(name)
+	expectedImports := map[string]bool{}
+	fn := AddCodeFunction(name, "User_DB")
 	fnCode, fnImports := fn.FunctionCode()
 	// t.Log(fnCode)
 	assert.Equal(t, expectedFnCode, fnCode)
@@ -118,7 +112,7 @@ func TestAddCodeFunction(t *testing.T) {
 func TestAddOrReplaceCodeFunction(t *testing.T) {
 	name := "AddOrReplaceUser"
 
-	expectedFnCode := `func AddOrReplaceUser(ctx context.Context, db *sql.DB, requestParams AddOrReplaceUserParams) (int64, bool, error) {
+	expectedFnCode := `func AddOrReplaceUser(ctx context.Context, db *User_DB, requestParams AddOrReplaceUserParams) (int64, bool, error) {
 	stmt := db.preparedCache["AddOrReplaceUser"]
 	values, err := AddOrReplaceUserParseParams(requestParams)
 	if err != nil {
@@ -133,11 +127,9 @@ func TestAddOrReplaceCodeFunction(t *testing.T) {
 	return id, inserted, nil
 }`
 
-	expectedImports := map[string]bool{
-		"database/sql": true,
-	}
+	expectedImports := map[string]bool{}
 
-	fn := AddOrReplaceCodeFunction(name)
+	fn := AddOrReplaceCodeFunction(name, "User_DB")
 	fnCode, fnImports := fn.FunctionCode()
 	assert.Equal(t, expectedFnCode, fnCode)
 	assert.Equal(t, expectedImports, fnImports)
@@ -151,7 +143,7 @@ func TestAddOrReplaceCodeFunction(t *testing.T) {
 func TestDeleteCodeFunction(t *testing.T) {
 	name := "DeleteUser"
 
-	expectedFnCode := `func DeleteUser(ctx context.Context, db *sql.DB, requestParams DeleteUserParams) (int64, error) {
+	expectedFnCode := `func DeleteUser(ctx context.Context, db *User_DB, requestParams DeleteUserParams) (int64, error) {
 	stmt := db.preparedCache["DeleteUser"]
 	values, err := DeleteUserParseParams(requestParams)
 	if err != nil {
@@ -168,10 +160,8 @@ func TestDeleteCodeFunction(t *testing.T) {
 	return rowsAffected, nil
 }`
 
-	expectedImports := map[string]bool{
-		"database/sql": true,
-	}
-	fn := DeleteCodeFunction(name)
+	expectedImports := map[string]bool{}
+	fn := DeleteCodeFunction(name, "User_DB")
 	fnCode, fnImports := fn.FunctionCode()
 	assert.Equal(t, expectedFnCode, fnCode)
 	assert.Equal(t, expectedImports, fnImports)
@@ -249,4 +239,130 @@ func TestPrepareStmtFunction(t *testing.T) {
 	actualCode, _ := actual.FunctionCode()
 	t.Log(actualCode)
 	assert.Equal(t, expectedCode, actualCode)
+}
+
+func TestSetupDBConnectionFunction(t *testing.T) {
+	// Test case 1: Successful setup of the database
+	dataConf := defs.DataConfig{
+		Models: []defs.ModelConfig{{Model: defs.Model{Name: "Product"}}},
+		DatabaseConfig: &defs.DatabaseConfig{
+			DriverName: "postgres",
+			DBConfigId: "default",
+			UserName:   "postgres",
+			Password:   "postgres",
+			Host:       "localhost",
+			Port:       5432,
+			DBName:     "postgres",
+			ConnectionConfig: &defs.ConnectionConfig{
+				MaxLifetimeMins: 30,
+			},
+			ConnectionPoolConfig: &defs.ConnectionPoolConfig{
+				MaxIdleConns: 10,
+			},
+		},
+	}
+	expectedImports := []string{"database/sql", "github.com/lib/pq", "time"}
+	expectedReturns := typeOnlyParamsCE("*sql.DB", "error")
+
+	fn, err := SetupDBConnectionFunction(dataConf)
+	fnCode, fnImports := fn.FunctionCode()
+
+	expectedFnCode := `func SetupDBConnection() (*sql.DB, error) {
+	driverName, dsn, idleConns, connMaxLifetime := "postgres", "user=postgres password=postgres dbname=postgres port=5432 host=localhost", 10, 30
+	db, err := sql.Open(driverName, dsn)
+	if err != nil {
+		return nil, err
+	}
+	err = db.Ping()
+	if err != nil {
+		return nil, err
+	}
+	db.SetMaxIdleConns(idleConns)
+	db.SetConnMaxLifetime((time.Minute * connMaxLifetime))
+	return db, nil
+}`
+
+	t.Log(fnCode)
+
+	assert.Nil(t, err)
+	assert.Equal(t, expectedFnCode, fnCode)
+	assert.Equal(t, "SetupDBConnection", fn.Name)
+	assert.Equal(t, expectedImports, fn.Imports)
+	assert.Equal(t, expectedReturns, fn.Returns)
+
+	// Test case 2: Check if the correct imports are present
+	assert.Equal(t, map[string]bool{
+		"database/sql":      true,
+		"github.com/lib/pq": true,
+		"time":              true,
+	}, fnImports)
+}
+
+func TestGenerateNewFamilyFunction(t *testing.T) {
+	// Create a mock DataConfig and modelNameMappings
+
+	modelNameMaps := modelNameMappings{
+		{
+			ModelName:         "User",
+			ModelStructName:   "User",
+			ModelDBStructName: "User_DB",
+		},
+		{
+			ModelName:         "Product",
+			ModelStructName:   "Product",
+			ModelDBStructName: "Product_DB",
+		},
+		{
+			ModelName:         "Order",
+			ModelStructName:   "Order",
+			ModelDBStructName: "Order_DB",
+		},
+	}
+
+	// Call the function
+	fn, err := GenerateInitFamilyFunction(modelNameMaps, "RetailDB", "retailDB")
+	if err != nil {
+		t.Fatalf("GenerateNewFamilyFunctions returned an error: %v", err)
+	}
+	t.Log(fn.FunctionCode())
+
+	expectedCode := `func InitRetailDB() error {
+	db, err = SetupDBConnection()
+	if err != nil {
+		return err
+	}
+	stmtMapUser, err = UserPrepareStmt()
+	if err != nil {
+		return err
+	}
+	user := &User_DB{
+		db: db,
+		preparedCache: stmtMapUser,
+	}
+	stmtMapProduct, err = ProductPrepareStmt()
+	if err != nil {
+		return err
+	}
+	product := &Product_DB{
+		db: db,
+		preparedCache: stmtMapProduct,
+	}
+	stmtMapOrder, err = OrderPrepareStmt()
+	if err != nil {
+		return err
+	}
+	order := &Order_DB{
+		db: db,
+		preparedCache: stmtMapOrder,
+	}
+	RetailDB = &retailDB{
+		User: user,
+		Product: product,
+		Order: order,
+	}
+	return nil
+}`
+
+	resultCode, _ := fn.FunctionCode()
+	assert.Equal(t, expectedCode, resultCode)
 }

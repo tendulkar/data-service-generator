@@ -75,7 +75,7 @@ func TestUnitModule_GenerateCode(t *testing.T) {
 	um := &UnitModule{
 		Name:    "testModule",
 		Imports: []string{"fmt", "strings"},
-		Structs: []*Struct{
+		Structs: []*StructDef{
 			{
 				Name: "TestStruct",
 				Fields: []*Field{
@@ -84,7 +84,7 @@ func TestUnitModule_GenerateCode(t *testing.T) {
 				},
 			},
 		},
-		Functions: []*Function{
+		Functions: []*FunctionDef{
 			{
 				Name: "TestFunction",
 				Body: CodeElements{
@@ -93,10 +93,10 @@ func TestUnitModule_GenerateCode(t *testing.T) {
 			},
 		},
 		Variables: []*Variable{
-			{Name: "TestVariable", Value: "\"test value\""},
+			{Names: "TestVariable", Values: "\"test value\""},
 		},
 		Constants: []*Constant{
-			{Name: "TestConstant", Value: "123"},
+			{Name: "TestConstant", Value: 123},
 		},
 		InitFunction: CodeElements{
 			{FunctionCall: &FunctionCall{Receiver: "fmt", Function: "Println", Args: &Literal{Value: "Initializing module"}}},
@@ -107,7 +107,7 @@ func TestUnitModule_GenerateCode(t *testing.T) {
 	}
 
 	modulePath := "path/to/module"
-	deps := um.GenerateUnitCode(modulePath, "testModule")
+	deps := um.GenerateAndWriteCode(modulePath, "testModule")
 	if len(deps) != 0 {
 		t.Errorf("Error generating code, should have empty deps, but got: %v", deps)
 	} // Verify the generated code
@@ -149,7 +149,7 @@ func main() {
 		Name: "testModule",
 	}
 
-	deps2 := um.GenerateUnitCode(modulePath, "testModule")
+	deps2 := um.GenerateAndWriteCode(modulePath, "testModule")
 	if len(deps2) != 0 {
 		t.Errorf("Error generating code, should have empty deps, but got: %v", deps2)
 	}
@@ -202,7 +202,7 @@ func TestModule_GenerateModuleCode(t *testing.T) {
 		Units: []UnitModule{
 			{
 				Name: "testUnit1",
-				Functions: []*Function{
+				Functions: []*FunctionDef{
 					{
 						Name: "TestFunction1",
 						Body: CodeElements{
@@ -214,7 +214,7 @@ func TestModule_GenerateModuleCode(t *testing.T) {
 			},
 			{
 				Name: "testUnit2",
-				Functions: []*Function{
+				Functions: []*FunctionDef{
 					{
 						Name: "TestFunction2",
 						Body: CodeElements{
@@ -230,7 +230,7 @@ func TestModule_GenerateModuleCode(t *testing.T) {
 				Units: []UnitModule{
 					{
 						Name: "testChildUnit1",
-						Functions: []*Function{
+						Functions: []*FunctionDef{
 							{
 								Name: "TestChildFunction1",
 								Body: CodeElements{
@@ -251,7 +251,7 @@ func TestModule_GenerateModuleCode(t *testing.T) {
 				Units: []UnitModule{
 					{
 						Name: "testChildUnit2",
-						Functions: []*Function{
+						Functions: []*FunctionDef{
 							{
 								Name: "TestChildFunction2",
 								Body: CodeElements{
@@ -390,7 +390,7 @@ func TestGenerateProject(t *testing.T) {
 				Units: []UnitModule{
 					{
 						Name: "testUnit1",
-						Functions: []*Function{
+						Functions: []*FunctionDef{
 							{
 								Name: "TestFunction1",
 								Body: CodeElements{
@@ -407,7 +407,7 @@ func TestGenerateProject(t *testing.T) {
 				Units: []UnitModule{
 					{
 						Name: "testUnit2",
-						Functions: []*Function{
+						Functions: []*FunctionDef{
 							{
 								Name: "TestFunction2",
 								Body: CodeElements{

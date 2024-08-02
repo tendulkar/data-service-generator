@@ -9,15 +9,15 @@ import (
 )
 
 type UnitModule struct {
-	Name         string       `yaml:"name"`
-	Imports      []string     `yaml:"imports"`
-	Structs      []*Struct    `yaml:"structs"`
-	Functions    []*Function  `yaml:"functions"`
-	Variables    []*Variable  `yaml:"variables"`
-	Constants    []*Constant  `yaml:"constants"`
-	InitFunction CodeElements `yaml:"init_fn"`
-	MainFunction CodeElements `yaml:"main"`
-	Dependencies []Dependency `yaml:"dependencies"`
+	Name         string         `yaml:"name"`
+	Imports      []string       `yaml:"imports"`
+	Structs      []*StructDef   `yaml:"structs"`
+	Functions    []*FunctionDef `yaml:"functions"`
+	Variables    []*Variable    `yaml:"variables"`
+	Constants    []*Constant    `yaml:"constants"`
+	InitFunction CodeElements   `yaml:"init_fn"`
+	MainFunction CodeElements   `yaml:"main"`
+	Dependencies []Dependency   `yaml:"dependencies"`
 }
 
 type Module struct {
@@ -142,8 +142,8 @@ func GenerateGoMod(project Project, cleanDeps map[string]string, basePath string
 	writeFileFun(filepath.Join(basePath, "go.mod"), sb.String())
 }
 
-func (u *UnitModule) GenerateUnitCode(filePath string, moduleName string) map[Dependency]bool {
-
+func (u *UnitModule) GenerateCode(moduleName string) (string, map[Dependency]bool, error) {
+	// Generate code for unit module
 	srcFile := GoSourceFile{
 		Package:      moduleName,
 		Imports:      u.Imports,
@@ -158,7 +158,17 @@ func (u *UnitModule) GenerateUnitCode(filePath string, moduleName string) map[De
 
 	srcCode, deps, err := srcFile.SourceCode()
 	if err != nil {
-		log.Fatalf("Unable to generate source code: %v", err)
+		log.Fatalf("UnitModule.GenerateCode Unable to generate source code: %v, module: %s", err, moduleName)
+	}
+
+	return srcCode, deps, err
+}
+
+func (u *UnitModule) GenerateAndWriteCode(filePath string, moduleName string) map[Dependency]bool {
+
+	srcCode, deps, err := u.GenerateCode(moduleName)
+	if err != nil {
+		log.Fatalf("UnitModule.GenerateCode Unable to generate source code: %v, module: %s, path: %s", err, moduleName, filePath)
 	}
 
 	goSrcPath := filepath.Join(filePath, u.Name+".go")
@@ -181,7 +191,7 @@ func (m *Module) GenerateModuleCode(moduleParentPath string) (string, map[Depend
 	}
 
 	for _, unit := range m.Units {
-		deps := unit.GenerateUnitCode(filePath, m.Name)
+		deps := unit.GenerateAndWriteCode(filePath, m.Name)
 		for dep := range deps {
 			dependencies[dep] = true
 		}

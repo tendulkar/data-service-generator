@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stellarsky.ai/platform/codegen/data-service-generator/constructs/golang"
+	"stellarsky.ai/platform/codegen/data-service-generator/constructs/golang/goutils"
 	"stellarsky.ai/platform/codegen/data-service-generator/db/generator/defs"
 )
 
@@ -68,8 +69,8 @@ func execStmtCE(stmtName, valuesName, resultName string, returnParams []*golang.
 	}
 }
 
-func createVarCE(name string, typ string) *golang.VariableCreate {
-	return &golang.VariableCreate{
+func createVarCE(name string, typ string) *golang.Variable {
+	return &golang.Variable{
 		Names: name,
 		Type:  typ,
 	}
@@ -155,6 +156,15 @@ func dbParamCE(dbName string) *golang.Parameter {
 	}
 }
 
+func modelDBParamCE(dbName, modelDBName string) *golang.Parameter {
+	return &golang.Parameter{
+		Name: dbName,
+		Type: &golang.GoType{
+			Name: fmt.Sprintf("*%s", modelDBName),
+		},
+	}
+}
+
 func requestParamsCE(confName string, requestParamsName string) *golang.Parameter {
 	return &golang.Parameter{
 		Name: requestParamsName,
@@ -164,18 +174,18 @@ func requestParamsCE(confName string, requestParamsName string) *golang.Paramete
 	}
 }
 
-func dbRequestParamsCE(dbName, name, requestParamsName string) []*golang.Parameter {
+func dbRequestParamsCE(dbName, modelDBName, name, requestParamsName string) []*golang.Parameter {
 	return []*golang.Parameter{
-		dbParamCE(dbName),
+		modelDBParamCE(dbName, modelDBName),
 		requestParamsCE(name, requestParamsName),
 	}
 }
 
-func ctxDBRequestParamsCE(ctxName, dbName, name, requestParamsName string) []*golang.Parameter {
+func ctxDBRequestParamsCE(ctxName, dbName, modelDBName, name, requestParamsName string) []*golang.Parameter {
 	params := []*golang.Parameter{
 		ctxParamCE(ctxName),
 	}
-	params = append(params, dbRequestParamsCE(dbName, name, requestParamsName)...)
+	params = append(params, dbRequestParamsCE(dbName, modelDBName, name, requestParamsName)...)
 	return params
 }
 
@@ -234,7 +244,7 @@ func callRowsAffectedCE(objName, resultName, errorName string, returnParams []*g
 	return callResultErrorCE(objName, "RowsAffected", []string{}, resultName, errorName, returnParams)
 }
 
-func FindCodeFunction(modelName, name string, attributes []string) *golang.Function {
+func FindCodeFunction(modelName, modelDBName, name string, attributes []string) *golang.FunctionDef {
 	fnReturns := resultsErrorParamsCE(modelName, "results", "err", "")
 	codeElems := golang.CodeElements{
 		{
@@ -257,10 +267,10 @@ func FindCodeFunction(modelName, name string, attributes []string) *golang.Funct
 		},
 	}
 
-	params := ctxDBRequestParamsCE("ctx", "db", name, "requestParams")
+	params := ctxDBRequestParamsCE("ctx", "db", modelDBName, name, "requestParams")
 	dependencies := []golang.Dependency{}
 
-	fn := &golang.Function{
+	fn := &golang.FunctionDef{
 		Name:         name,
 		Parameters:   params,
 		Body:         codeElems,
@@ -271,7 +281,7 @@ func FindCodeFunction(modelName, name string, attributes []string) *golang.Funct
 	return fn
 }
 
-func UpdateCodeFunction(name string) *golang.Function {
+func UpdateCodeFunction(name string, modelDBName string) *golang.FunctionDef {
 	fnReturns := typeOnlyParamsCE("int64", "error")
 
 	codeElems := golang.CodeElements{
@@ -291,9 +301,9 @@ func UpdateCodeFunction(name string) *golang.Function {
 			Return: []string{"rowsAffected", "nil"},
 		},
 	}
-	params := ctxDBRequestParamsCE("ctx", "db", name, "requestParams")
+	params := ctxDBRequestParamsCE("ctx", "db", modelDBName, name, "requestParams")
 	dependencies := make([]golang.Dependency, 0)
-	fn := &golang.Function{
+	fn := &golang.FunctionDef{
 		Name:         name,
 		Parameters:   params,
 		Body:         codeElems,
@@ -303,7 +313,7 @@ func UpdateCodeFunction(name string) *golang.Function {
 	return fn
 }
 
-func AddCodeFunction(name string) *golang.Function {
+func AddCodeFunction(name string, modelDBName string) *golang.FunctionDef {
 	fnReturns := typeOnlyParamsCE("int64", "error")
 	codeElems := golang.CodeElements{
 		{
@@ -322,8 +332,8 @@ func AddCodeFunction(name string) *golang.Function {
 			Return: []string{"id", "nil"},
 		},
 	}
-	params := ctxDBRequestParamsCE("ctx", "db", name, "requestParams")
-	fn := &golang.Function{
+	params := ctxDBRequestParamsCE("ctx", "db", modelDBName, name, "requestParams")
+	fn := &golang.FunctionDef{
 		Name:         name,
 		Parameters:   params,
 		Body:         codeElems,
@@ -333,7 +343,7 @@ func AddCodeFunction(name string) *golang.Function {
 	return fn
 }
 
-func AddOrReplaceCodeFunction(name string) *golang.Function {
+func AddOrReplaceCodeFunction(name string, modelDBName string) *golang.FunctionDef {
 	fnReturns := typeOnlyParamsCE("int64", "bool", "error")
 	codeElems := golang.CodeElements{
 		{
@@ -355,8 +365,8 @@ func AddOrReplaceCodeFunction(name string) *golang.Function {
 			Return: []string{"id", "inserted", "nil"},
 		},
 	}
-	params := ctxDBRequestParamsCE("ctx", "db", name, "requestParams")
-	fn := &golang.Function{
+	params := ctxDBRequestParamsCE("ctx", "db", modelDBName, name, "requestParams")
+	fn := &golang.FunctionDef{
 		Name:         name,
 		Parameters:   params,
 		Body:         codeElems,
@@ -366,7 +376,7 @@ func AddOrReplaceCodeFunction(name string) *golang.Function {
 	return fn
 }
 
-func DeleteCodeFunction(name string) *golang.Function {
+func DeleteCodeFunction(name string, modelDBName string) *golang.FunctionDef {
 	fnReturns := typeOnlyParamsCE("int64", "error")
 	codeElems := golang.CodeElements{
 		{
@@ -385,8 +395,8 @@ func DeleteCodeFunction(name string) *golang.Function {
 			Return: []string{"rowsAffected", "nil"},
 		},
 	}
-	params := ctxDBRequestParamsCE("ctx", "db", name, "requestParams")
-	fn := &golang.Function{
+	params := ctxDBRequestParamsCE("ctx", "db", modelDBName, name, "requestParams")
+	fn := &golang.FunctionDef{
 		Name:         name,
 		Parameters:   params,
 		Body:         codeElems,
@@ -397,7 +407,7 @@ func DeleteCodeFunction(name string) *golang.Function {
 }
 
 func ReadParamsFunction(paramRefs []defs.ParameterRef, confName string,
-	valuesName string, paramsName string) *golang.Function {
+	valuesName string, paramsName string) *golang.FunctionDef {
 	body := golang.CodeElements{
 		{
 			Variable: createVarCE(valuesName, "[]interface{}"),
@@ -427,7 +437,7 @@ func ReadParamsFunction(paramRefs []defs.ParameterRef, confName string,
 
 	fnName := fmt.Sprintf("%sReadParams", confName)
 	fnReturns := typeOnlyParamsCE("[]interface{}", "error")
-	fn := &golang.Function{
+	fn := &golang.FunctionDef{
 		Name:         fnName,
 		Parameters:   fnParams,
 		Body:         body,
@@ -469,7 +479,10 @@ type NamedQuery struct {
 	Query string
 }
 
-func PrepareStmtFunction(modelName string, queries []NamedQuery) *golang.Function {
+// Generates function to prepare statements
+// Signature: func(db *sql.DB, queries map[string]string) (map[string]*sql.Stmt, error) {...}
+// The function will prepare all queries passed with NamedQuery
+func PrepareStmtFunction(modelName string, queries []NamedQuery) *golang.FunctionDef {
 	returnFn := typeOnlyParamsCE("map[string]*sql.Stmt", "error")
 	body := golang.CodeElements{
 		{
@@ -504,7 +517,7 @@ func PrepareStmtFunction(modelName string, queries []NamedQuery) *golang.Functio
 	}
 
 	fnName := fmt.Sprintf("%sPrepareStmt", modelName)
-	fn := &golang.Function{
+	fn := &golang.FunctionDef{
 		Name:         fnName,
 		Parameters:   fnParams,
 		Body:         body,
@@ -513,4 +526,112 @@ func PrepareStmtFunction(modelName string, queries []NamedQuery) *golang.Functio
 	}
 	return fn
 
+}
+
+// Generates function to setup database connection
+// func SetupDBConnection() (*sql.DB, error) {...}
+// It'll
+// 1. read config,
+// 2. do sql.Open() to host,
+// 3. db.Ping() for connection,
+// 4. configure pool and connection,
+// 5. and return db or error
+func SetupDBConnectionFunction(dataConf defs.DataConfig) (*golang.FunctionDef, error) {
+
+	if dataConf.DatabaseConfig == nil {
+		return nil, fmt.Errorf("dataconf is missing connection config")
+	}
+	dbConf := dataConf.DatabaseConfig
+	if dbConf.DriverName == "" {
+		return nil, fmt.Errorf("dataconf is missing driver")
+	}
+
+	if dbConf.DBName == "" || dbConf.Host == "" || dbConf.Port == 0 || dbConf.UserName == "" || dbConf.Password == "" {
+		return nil, fmt.Errorf("dataconf is missing connection details dbname: [%s], host: [%s], port: [%d], username: [%s], password: [%s]",
+			dbConf.DBName, dbConf.Host, dbConf.Port, dbConf.UserName, dbConf.Password)
+	}
+
+	if dbConf.ConnectionConfig == nil {
+		return nil, fmt.Errorf("dataconf is missing connection config")
+	}
+
+	if dbConf.ConnectionPoolConfig == nil {
+		return nil, fmt.Errorf("dataconf is missing connection pool config")
+	}
+
+	dsn := fmt.Sprintf("user=%s password=%s dbname=%s port=%d host=%s",
+		dbConf.UserName, dbConf.Password, dbConf.DBName, dbConf.Port, dbConf.Host)
+	fn := golang.FunctionDef{}
+	fn.FunctionCode()
+	returnParams := typeOnlyParamsCE("*sql.DB", "error")
+	return &golang.FunctionDef{
+		Name:    "SetupDBConnection",
+		Imports: []string{"database/sql", "github.com/lib/pq", "time"},
+		Returns: returnParams,
+		Body: golang.CodeElements{
+			{
+				NewAssign: &golang.NewAssignment{
+					Left:  []string{"driverName", "dsn", "idleConns", "connMaxLifetime"},
+					Right: golang.NewLits(dbConf.DriverName, dsn, dbConf.ConnectionPoolConfig.MaxIdleConns, dbConf.ConnectionConfig.MaxLifetimeMins),
+				},
+			},
+			goutils.FCEHNewOutReceiverArgsCE([]string{"db", "err"}, "sql", "Open",
+				[]string{"driverName", "dsn"}, goutils.EHNilError("err")),
+
+			goutils.FCEHOutReceiverArgsCE([]string{"err"}, "db", "Ping", nil, goutils.EHNilError("err")),
+			goutils.FCReceiverArgsCE("db", "SetMaxIdleConns", "idleConns"),
+			goutils.FCReceiverArgsCE("db", "SetConnMaxLifetime", &golang.Mul{BinaryOp: golang.BinaryOp{
+				Left: &golang.Literal{Value: "time", Attribute: "Minute"}, Right: "connMaxLifetime"}}),
+			returnValuesCE("db", "nil"),
+		},
+	}, nil
+}
+
+// Generate function, which can be used to create a singleton database instance
+// Function signature is func NewRetailDB() error {...}
+// return values &RetailDB{User: user, Product: product, Order: order}, nil
+// For example, user is User_DB struct {db, preparedCache}
+// this function will build one db instance, and prepared cache for each model.
+// Since it's a singleton better to keep return type as lower case(private).
+func GenerateInitFamilyFunction(modelNameMaps modelNameMappings, varName, familyTypeName string) (*golang.FunctionDef, error) {
+	body := golang.CodeElements{
+		goutils.FCEHOutCE([]string{"db", "err"}, "SetupDBConnection", goutils.EHError("err")), // SetupDBConnection()
+	}
+
+	for _, modelNameMap := range modelNameMaps {
+		body = append(body, goutils.FCEHOutCE([]string{fmt.Sprintf("stmtMap%s", modelNameMap.ModelStructName), "err"},
+			fmt.Sprintf("%sPrepareStmt", modelNameMap.ModelStructName), goutils.EHError("err"))) // PrepareCache())
+
+		modelDBStruct := &golang.StructCreation{
+			NewOutput:  golang.ToCamelCase(modelNameMap.ModelStructName),
+			StructType: modelNameMap.ModelDBStructName,
+			KeyValues: golang.KeyValues{
+				{Key: "db", Variable: "db"},
+				{Key: "preparedCache", Variable: fmt.Sprintf("stmtMap%s", modelNameMap.ModelStructName)},
+			},
+		}
+		body = append(body, &golang.CodeElement{StructCreation: modelDBStruct})
+	}
+
+	familyKeyValues := golang.KeyValues{}
+	for _, modelNameMap := range modelNameMaps {
+		familyKeyValues = append(familyKeyValues,
+			&golang.KeyValue{Key: modelNameMap.ModelStructName, Variable: golang.ToCamelCase(modelNameMap.ModelStructName)})
+	}
+
+	stCreate := &golang.StructCreation{
+		Output:     varName,
+		StructType: familyTypeName,
+		KeyValues:  familyKeyValues,
+	}
+	body = append(body, &golang.CodeElement{StructCreation: stCreate})
+	body = append(body, returnValuesCE("nil"))
+
+	fn := &golang.FunctionDef{
+		Name:    "Init" + varName,
+		Returns: typeOnlyParamsCE("error"),
+		Body:    body,
+	}
+
+	return fn, nil
 }

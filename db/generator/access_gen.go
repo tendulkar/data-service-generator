@@ -14,14 +14,37 @@ import (
 	"stellarsky.ai/platform/codegen/data-service-generator/db/models"
 )
 
-func GenerateDB(model *models.Model, dataConfig *defs.DataConfig) ([]*golang.UnitModule, error) {
+type modelNameMapping struct {
+	ModelName         string
+	ModelStructName   string
+	ModelDBStructName string
+}
+
+type modelNameMappings []*modelNameMapping
+
+func GenerateDB(dataConfig *defs.DataConfig) ([]*golang.UnitModule, error) {
+
+	if dataConfig.FamilyName == "" {
+		return nil, fmt.Errorf("dataconf is missing family name")
+	}
+
+	if dataConfig.Models == nil {
+		return nil, fmt.Errorf("dataconf is missing models config")
+	}
+
+	if dataConfig.DatabaseConfig == nil {
+		return nil, fmt.Errorf("dataconf is missing database config")
+	}
 
 	unitModules := make([]*golang.UnitModule, 0)
+	modelNameMaps := make(modelNameMappings, 0)
 	for _, config := range dataConfig.Models {
-		srcFile, err := Generate(config)
+		srcFile, modelNameMap, err := Generate(config)
 		if err != nil {
+			base.LOG.Error("GenerateDB::Error generating code for model %s: %v", config.Model.Name, err)
 			return nil, err
 		}
+		modelNameMaps = append(modelNameMaps, modelNameMap)
 
 		unitModule := &golang.UnitModule{
 			Name:         golang.ToSnakeCase(config.Model.Name),
@@ -36,8 +59,58 @@ func GenerateDB(model *models.Model, dataConfig *defs.DataConfig) ([]*golang.Uni
 
 	}
 
+	st, fn, dbvar, err := GenerateFamily(dataConfig.FamilyName, modelNameMaps)
+	if err != nil {
+		base.LOG.Error("GenerateDB::Error generating code for family %s: %v", dataConfig.FamilyName, err)
+		return nil, err
+	}
+	unitModules = append(unitModules, &golang.UnitModule{
+		Name:         dataConfig.FamilyName,
+		Structs:      st,
+		Functions:    fn,
+		Variables:    dbvar,
+		Constants:    nil,
+		Imports:      nil,
+		Dependencies: nil,
+	})
+
 	return unitModules, nil
 
+}
+
+func GenerateFamily(familyName string, modelNameMaps modelNameMappings) ([]*golang.StructDef, []*golang.FunctionDef, []*golang.Variable, error) {
+
+	structs := make([]*golang.StructDef, 0)
+	functions := make([]*golang.FunctionDef, 0)
+
+	structName := golang.ToCamelCase(familyName)
+	varName := golang.ToPascalCase(familyName)
+	nameWithTypes := make([]golang.NameWithType, 0, 1)
+
+	for _, nameMap := range modelNameMaps {
+		// TODO: read modelName from actual model struct, rather than deriving it, it's dangerous and can break at any time.
+		modelName := nameMap.ModelStructName
+		nameWithTypes = append(nameWithTypes, golang.NameWithType{
+			Name: modelName,
+			Type: &golang.GoType{Name: modelName},
+		})
+	}
+
+	st := golang.GenStructForDataModel(structName, nameWithTypes, false, false, false)
+	fn, err := GenerateInitFamilyFunction(modelNameMaps, varName, structName)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	structs = append(structs, st)
+	functions = append(functions, fn)
+
+	varDeclare := []*golang.Variable{{
+		Names:       varName,
+		Type:        structName,
+		IsReference: true,
+	},
+	}
+	return structs, functions, varDeclare, nil
 }
 
 func readTypeAndValidations(attributeId int64) (string, *golang.GoType, []*models.Validation, error) {
@@ -55,7 +128,7 @@ func readTypeAndValidations(attributeId int64) (string, *golang.GoType, []*model
 	if err != nil {
 		return "", nil, nil, err
 	}
-	base.LOG.Info("ReadTypeValidations", "goType", goType, "validationIds", validationIds, "attribute", attribute,
+	base.LOG.Debug("ReadTypeValidations", "goType", goType, "validationIds", validationIds, "attribute", attribute,
 		"attributeId", attributeId, "typeId", typeId, "postgresType", postgresType, "goTypeStr", goTypeStr)
 	validations := datahelpers.GetValidations(validationIds)
 	return attribute.Name, goType, validations, nil
@@ -70,18 +143,23 @@ func readTypeAndValidations(attributeId int64) (string, *golang.GoType, []*model
 //		Price       float64 `db:"price"`
 //	}
 
-func generateModel(config *defs.ModelConfig) ([]*golang.Struct, []*golang.Function, error) {
+func generateModel(config *defs.ModelConfig) (*modelNameMapping, []*golang.StructDef, []*golang.FunctionDef, error) {
 
-	models := make([]*golang.Struct, 0, 1)
-	functions := make([]*golang.Function, 0, 1)
+	models := make([]*golang.StructDef, 0, 1)
+	functions := make([]*golang.FunctionDef, 0, 1)
+	modelNameMap := &modelNameMapping{
+		ModelName:         config.Model.Name,
+		ModelStructName:   golang.ToPascalCase(config.Model.Name),
+		ModelDBStructName: golang.ToPascalCase(config.Model.Name) + "_DB",
+	}
 
 	nameWithTypes := make([]golang.NameWithType, 0, 1)
 	for _, attribute := range config.Model.Attributes {
 		attrName, goType, _, err := readTypeAndValidations(attribute)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
-		base.LOG.Info("Attribute", "attrName", attrName, "goType", goType)
+		base.LOG.Debug("Attribute", "attrName", attrName, "goType", goType)
 
 		nameWithTypes = append(nameWithTypes, golang.NameWithType{
 			Name: attrName,
@@ -89,48 +167,26 @@ func generateModel(config *defs.ModelConfig) ([]*golang.Struct, []*golang.Functi
 		})
 	}
 
-	modelStruct := golang.GenerateStructForDataModel(config.Model.Name, nameWithTypes, false, false, true)
-	modelDBStruct := &golang.Struct{
-		Name: config.Model.Name + "_DB",
-		Fields: []*golang.Field{
-			golang.NewField("db", "*sql.DB"),
-			golang.NewField("preparedCache", "map[string]*sql.Stmt"),
-		},
-		Imports: []string{"database/sql"},
+	modelStruct := golang.GenStructForDataModel(modelNameMap.ModelStructName, nameWithTypes, false, false, true)
+
+	dbNameWithTypes := []golang.NameWithType{
+		{Name: "db", Type: &golang.GoType{Name: "*sql.DB"}},
+		{Name: "preparedCache", Type: &golang.GoType{Name: "map[string]*sql.Stmt"}},
 	}
+
+	modelDBStruct, modelDBNewFn := golang.GenStructWithNewFunction(modelNameMap.ModelDBStructName, dbNameWithTypes, true, false, false, false)
 	models = append(models, modelStruct, modelDBStruct)
+	functions = append(functions, modelDBNewFn)
 
-	createModelDBSt := &golang.StructCreation{
-		Name: config.Model.Name + "_DB",
-		KeyValues: golang.KeyValues{
-			{Key: "db", Value: "db"},
-			{Key: "preparedCache", Value: "preparedCache"},
-		},
-		Fields: []*golang.Field{
-			golang.NewField("db", "*sql.DB"),
-			golang.NewField("preparedCache", "map[string]*sql.Stmt"),
-		},
-	}
-
-	newModelDBFn := &golang.Function{
-		Name: "New" + config.Model.Name + "_DB",
-		Parameters: []*golang.Parameter{
-			golang.NewParameter("db", "*sql.DB"),
-			golang.NewParameter("preparedCache", "map[string]*sql.Stmt"),
-		},
-		Returns: golang.NewReturnTypes("*"+config.Model.Name+"_DB"),
-		Body: []*golang.CodeElement{golang.NewReturnStatement()}
-		Body:    golang.NewGoCode("return &" + config.Model.Name + "_DB{db: db, preparedCache: make(map[string]*sql.Stmt)}"),
-	}
-	return models, functions, nil
+	return modelNameMap, models, functions, nil
 }
 
-type AccessFnGenerator func(modelName string, config []defs.AccessConfig) ([]NamedQuery, []*golang.Function, []*golang.Struct, error)
+type AccessFnGenerator func(modelName string, modelDBName string, config []defs.AccessConfig) ([]NamedQuery, []*golang.FunctionDef, []*golang.StructDef, error)
 
-func genAccessFn(modelName string, config []defs.AccessConfig, accessFn AccessFnGenerator,
-	allQueries *[]NamedQuery, allFunctions *[]*golang.Function, allStructs *[]*golang.Struct) error {
+func genAccessFn(modelName string, modelDBName string, config []defs.AccessConfig, accessFn AccessFnGenerator,
+	allQueries *[]NamedQuery, allFunctions *[]*golang.FunctionDef, allStructs *[]*golang.StructDef) error {
 
-	queries, accessFns, structs, err := accessFn(modelName, config)
+	queries, accessFns, structs, err := accessFn(modelName, modelDBName, config)
 	if err != nil {
 		return err
 	}
@@ -140,26 +196,28 @@ func genAccessFn(modelName string, config []defs.AccessConfig, accessFn AccessFn
 	return nil
 }
 
-func Generate(config defs.ModelConfig) (*golang.GoSourceFile, error) {
+func Generate(config defs.ModelConfig) (*golang.GoSourceFile, *modelNameMapping, error) {
 
 	allQueries := make([]NamedQuery, 0)
-	allFunctions := make([]*golang.Function, 0)
-	allStructs := make([]*golang.Struct, 0)
+	allFunctions := make([]*golang.FunctionDef, 0)
+	allStructs := make([]*golang.StructDef, 0)
 	caser := cases.Title(language.English)
 	modelName := caser.String(config.Model.Name)
 
 	// Generate Model struct for a given model, for example `type User struct {<fields with db tags>}`
-	models, fns, err := generateModel(&config)
+	modelNameMap, models, fns, err := generateModel(&config)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	allStructs = append(allStructs, models...)
 	allFunctions = append(allFunctions, fns...)
 
 	// Generate methods for SELECT, UPDATE, INSERT, INSERT OR UPDATE, DELETE for a given model
-	err = geneateAllAccessMethods(config, modelName, &allQueries, &allFunctions, &allStructs)
+	err = geneateAllAccessMethods(config, modelNameMap.ModelStructName, modelNameMap.ModelDBStructName,
+		&allQueries, &allFunctions, &allStructs)
 	if err != nil {
-		return nil, err
+		base.LOG.Error("Generate::geneateAllAccessMethods", "err", err, "model", modelName, "modelMap", *modelNameMap)
+		return nil, nil, err
 	}
 
 	// PrepareStmt function will prepare all queries for a given model
@@ -176,12 +234,13 @@ func Generate(config defs.ModelConfig) (*golang.GoSourceFile, error) {
 		Variables:    nil,
 		Constants:    nil}
 
-	return goSrc, nil
+	return goSrc, modelNameMap, nil
 }
 
 // All access methods for a given model (Find, Update, Add, AddOrReplace and Delete),
 // will do query on database with above prepared statements (SELECT, UPDATE, INSERT, INSERT OR UPDATE, DELETE)
-func geneateAllAccessMethods(config defs.ModelConfig, modelName string, allQueries *[]NamedQuery, allFunctions *[]*golang.Function, allStructs *[]*golang.Struct) error {
+func geneateAllAccessMethods(config defs.ModelConfig, modelName string, modelDBName string,
+	allQueries *[]NamedQuery, allFunctions *[]*golang.FunctionDef, allStructs *[]*golang.StructDef) error {
 	accessMethods := []AccessFnGenerator{
 		GenerateFindConfigs,
 		GenerateUpdateConfigs,
@@ -199,7 +258,7 @@ func geneateAllAccessMethods(config defs.ModelConfig, modelName string, allQueri
 	}
 
 	for i, accessMethod := range accessMethods {
-		err := genAccessFn(modelName, accessConfigs[i], accessMethod, allQueries, allFunctions, allStructs)
+		err := genAccessFn(modelName, modelDBName, accessConfigs[i], accessMethod, allQueries, allFunctions, allStructs)
 		if err != nil {
 			return err
 		}
@@ -207,7 +266,7 @@ func geneateAllAccessMethods(config defs.ModelConfig, modelName string, allQueri
 	return nil
 }
 
-func generateParamsStruct(paramRefs []defs.ParameterRef, name string) *golang.Struct {
+func generateParamsStruct(paramRefs []defs.ParameterRef, name string) *golang.StructDef {
 	nameWithTypes := make([]golang.NameWithType, 0, len(paramRefs))
 	for _, param := range paramRefs {
 		nameWithTypes = append(nameWithTypes, golang.NameWithType{
@@ -216,26 +275,26 @@ func generateParamsStruct(paramRefs []defs.ParameterRef, name string) *golang.St
 		})
 	}
 
-	return golang.GenerateStructForDataModel(fmt.Sprintf("%sParams", name), nameWithTypes, true, false, false)
+	return golang.GenStructForDataModel(fmt.Sprintf("%sParams", name), nameWithTypes, true, false, false)
 }
 
-func generateRequestStruct(name string, paramStructName string) *golang.Struct {
+func generateRequestStruct(name string, paramStructName string) *golang.StructDef {
 	namedWithTypes := []golang.NameWithType{
 		{Name: "Params", Type: &golang.GoType{Name: paramStructName}},
 	}
-	return golang.GenerateStructForDataModel(fmt.Sprintf("%sRequest", name), namedWithTypes, true, false, false)
+	return golang.GenStructForDataModel(fmt.Sprintf("%sRequest", name), namedWithTypes, true, false, false)
 }
 
-func generateAccessStructs(paramRef []defs.ParameterRef, name string) []*golang.Struct {
+func generateAccessStructs(paramRef []defs.ParameterRef, name string) []*golang.StructDef {
 	paramStruct := generateParamsStruct(paramRef, name)
 	reqStruct := generateRequestStruct(name, paramStruct.Name)
-	return []*golang.Struct{paramStruct, reqStruct}
+	return []*golang.StructDef{paramStruct, reqStruct}
 }
 
 // GenerateFindConfigs will generate all SELECT queries for a given model
 // It generates find function, and one helper function for reading params from request to bind values to query
 // It generates 2 structs for params and request, request is input (arg) to find function, and params is part of request
-//
+// Note that we already have a prepared statement cache for each query, Product{<fields>} struct, Product_DB struct {db, preparedCache fields}
 // Example:
 //
 //		type GetProductByIdparams struct {
@@ -252,7 +311,7 @@ func generateAccessStructs(paramRef []defs.ParameterRef, name string) []*golang.
 //	        return values, nil
 //		}
 //
-//	    func GetProductByID(ctx context.Context, db *sql.DB, requestParams GetProductByIDParams) (results []Product, err error) {
+//	    func GetProductByID(ctx context.Context, db *Product_DB, requestParams GetProductByIDParams) (results []Product, err error) {
 //			stmt := db.preparedCache["GetProductByID"]
 //			values, err := GetProductByIDParseParams(requestParams)
 //			if err != nil {
@@ -274,10 +333,10 @@ func generateAccessStructs(paramRef []defs.ParameterRef, name string) []*golang.
 //			}
 //			return results, nil
 //	}
-func GenerateFindConfigs(modelName string, findConfig []defs.AccessConfig) ([]NamedQuery, []*golang.Function, []*golang.Struct, error) {
+func GenerateFindConfigs(modelName string, modelDBName string, findConfig []defs.AccessConfig) ([]NamedQuery, []*golang.FunctionDef, []*golang.StructDef, error) {
 
-	functions := make([]*golang.Function, 0, len(findConfig))
-	reqs := make([]*golang.Struct, 0, len(findConfig))
+	functions := make([]*golang.FunctionDef, 0, len(findConfig))
+	reqs := make([]*golang.StructDef, 0, len(findConfig))
 	queries := make([]NamedQuery, 0, len(findConfig))
 
 	for _, conf := range findConfig {
@@ -290,7 +349,7 @@ func GenerateFindConfigs(modelName string, findConfig []defs.AccessConfig) ([]Na
 		paramFn := ReadParamsFunction(paramRefs, conf.Name, "values", "params")
 		functions = append(functions, paramFn)
 
-		fn := FindCodeFunction(modelName, conf.Name, conf.Attributes)
+		fn := FindCodeFunction(modelName, modelDBName, conf.Name, conf.Attributes)
 		functions = append(functions, fn)
 	}
 
@@ -302,10 +361,10 @@ func GenerateFindConfigs(modelName string, findConfig []defs.AccessConfig) ([]Na
 // Similar to GenerateFindConfigs
 // It generates Update function, and one helper function for reading params from request to bind values to query
 // It generates 2 structs for params and request, request is input (arg) to Update function, and params is part of request
-func GenerateUpdateConfigs(modelName string, updateConfig []defs.AccessConfig) ([]NamedQuery, []*golang.Function, []*golang.Struct, error) {
+func GenerateUpdateConfigs(modelName string, modelDBName string, updateConfig []defs.AccessConfig) ([]NamedQuery, []*golang.FunctionDef, []*golang.StructDef, error) {
 
-	functions := make([]*golang.Function, 0, len(updateConfig))
-	reqs := make([]*golang.Struct, 0, len(updateConfig))
+	functions := make([]*golang.FunctionDef, 0, len(updateConfig))
+	reqs := make([]*golang.StructDef, 0, len(updateConfig))
 	queries := make([]NamedQuery, 0, len(updateConfig))
 
 	for _, conf := range updateConfig {
@@ -318,7 +377,7 @@ func GenerateUpdateConfigs(modelName string, updateConfig []defs.AccessConfig) (
 		paramFn := ReadParamsFunction(paramRefs, conf.Name, "values", "params")
 		functions = append(functions, paramFn)
 
-		fn := UpdateCodeFunction(conf.Name)
+		fn := UpdateCodeFunction(conf.Name, modelDBName)
 		functions = append(functions, fn)
 	}
 
@@ -330,9 +389,9 @@ func GenerateUpdateConfigs(modelName string, updateConfig []defs.AccessConfig) (
 // Similar to GenerateFindConfigs
 // It generates Add(INSERT) function, and one helper function for reading params from request to bind values to query
 // It generates 2 structs for params and request, request is input (arg) to Add function, and params is part of request
-func GenerateAddConfigs(modelName string, addConfig []defs.AccessConfig) ([]NamedQuery, []*golang.Function, []*golang.Struct, error) {
-	functions := make([]*golang.Function, 0, len(addConfig))
-	reqs := make([]*golang.Struct, 0, len(addConfig))
+func GenerateAddConfigs(modelName string, modelDBName string, addConfig []defs.AccessConfig) ([]NamedQuery, []*golang.FunctionDef, []*golang.StructDef, error) {
+	functions := make([]*golang.FunctionDef, 0, len(addConfig))
+	reqs := make([]*golang.StructDef, 0, len(addConfig))
 	queries := make([]NamedQuery, 0, len(addConfig))
 
 	for _, conf := range addConfig {
@@ -342,7 +401,7 @@ func GenerateAddConfigs(modelName string, addConfig []defs.AccessConfig) ([]Name
 		reqs = append(reqs, accessStructs...)
 		paramFn := ReadParamsFunction(paramRefs, conf.Name, "values", "params")
 		functions = append(functions, paramFn)
-		fn := AddCodeFunction(conf.Name)
+		fn := AddCodeFunction(conf.Name, modelDBName)
 		functions = append(functions, fn)
 	}
 	return queries, functions, reqs, nil
@@ -353,9 +412,9 @@ func GenerateAddConfigs(modelName string, addConfig []defs.AccessConfig) ([]Name
 // Similar to GenerateFindConfigs
 // It generates AddOrReplace(INSERT OR UPDATE) function, and one helper function for reading params from request to bind values to query
 // It generates 2 structs for params and request, request is input (arg) to AddOrReplace function, and params is part of request
-func GenerateAddOrReplaceConfigs(modelName string, addOrReplaceConfig []defs.AccessConfig) ([]NamedQuery, []*golang.Function, []*golang.Struct, error) {
-	functions := make([]*golang.Function, 0, len(addOrReplaceConfig))
-	reqs := make([]*golang.Struct, 0, len(addOrReplaceConfig))
+func GenerateAddOrReplaceConfigs(modelName string, modelDBName string, addOrReplaceConfig []defs.AccessConfig) ([]NamedQuery, []*golang.FunctionDef, []*golang.StructDef, error) {
+	functions := make([]*golang.FunctionDef, 0, len(addOrReplaceConfig))
+	reqs := make([]*golang.StructDef, 0, len(addOrReplaceConfig))
 	queries := make([]NamedQuery, 0, len(addOrReplaceConfig))
 
 	for _, conf := range addOrReplaceConfig {
@@ -365,7 +424,7 @@ func GenerateAddOrReplaceConfigs(modelName string, addOrReplaceConfig []defs.Acc
 		reqs = append(reqs, accessStructs...)
 		paramFn := ReadParamsFunction(paramRefs, conf.Name, "values", "params")
 		functions = append(functions, paramFn)
-		fn := AddOrReplaceCodeFunction(conf.Name)
+		fn := AddOrReplaceCodeFunction(conf.Name, modelDBName)
 		functions = append(functions, fn)
 	}
 	return queries, functions, reqs, nil
@@ -406,9 +465,9 @@ func GenerateAddOrReplaceConfigs(modelName string, addOrReplaceConfig []defs.Acc
 //		}
 //		return rowsAffected, nil
 //	}
-func GenerateDeleteConfigs(modelName string, deleteConfig []defs.AccessConfig) ([]NamedQuery, []*golang.Function, []*golang.Struct, error) {
-	functions := make([]*golang.Function, 0, len(deleteConfig))
-	reqs := make([]*golang.Struct, 0, len(deleteConfig))
+func GenerateDeleteConfigs(modelName string, modelDBName string, deleteConfig []defs.AccessConfig) ([]NamedQuery, []*golang.FunctionDef, []*golang.StructDef, error) {
+	functions := make([]*golang.FunctionDef, 0, len(deleteConfig))
+	reqs := make([]*golang.StructDef, 0, len(deleteConfig))
 	queries := make([]NamedQuery, 0, len(deleteConfig))
 
 	for _, conf := range deleteConfig {
@@ -418,59 +477,23 @@ func GenerateDeleteConfigs(modelName string, deleteConfig []defs.AccessConfig) (
 		reqs = append(reqs, accessStructs...)
 		paramFn := ReadParamsFunction(paramRefs, conf.Name, "values", "params")
 		functions = append(functions, paramFn)
-		fn := DeleteCodeFunction(conf.Name)
+		fn := DeleteCodeFunction(conf.Name, modelDBName)
 		functions = append(functions, fn)
 	}
 	return queries, functions, reqs, nil
 }
 
-func SetupDatabaseFunction(dataConf defs.DataConfig) (*golang.Function, error) {
+func SetupDatabaseFunction(dataConf defs.DataConfig) (*golang.FunctionDef, error) {
 
-	if dataConf.DatabaseConfig == nil {
-		return nil, fmt.Errorf("dataconf is missing connection config")
-	}
-	dbConf := dataConf.DatabaseConfig
-	if dbConf.DriverName == "" {
-		return nil, fmt.Errorf("dataconf is missing driver")
-	}
-
-	if dbConf.DBName == "" || dbConf.Host == "" || dbConf.Port == 0 || dbConf.UserName == "" || dbConf.Password == "" {
-		return nil, fmt.Errorf("dataconf is missing connection details dbname: [%s], host: [%s], port: [%d], username: [%s], password: [%s]",
-			dbConf.DBName, dbConf.Host, dbConf.Port, dbConf.UserName, dbConf.Password)
-	}
-
-	if dbConf.ConnectionConfig == nil {
-		return nil, fmt.Errorf("dataconf is missing connection config")
-	}
-
-	if dbConf.ConnectionPoolConfig == nil {
-		return nil, fmt.Errorf("dataconf is missing connection pool config")
-	}
-
-	dsn := fmt.Sprintf("user=%s password=%s dbname=%s port=%d host=%s",
-		dbConf.UserName, dbConf.Password, dbConf.DBName, dbConf.Port, dbConf.Host)
-	fn := golang.Function{}
-	fn.FunctionCode()
 	returnParams := typeOnlyParamsCE("error")
-	return &golang.Function{
+	fn := &golang.FunctionDef{
 		Name:    "SetupDatabase",
 		Imports: []string{"database/sql", "github.com/lib/pq", "time"},
 		Returns: returnParams,
 		Body: golang.CodeElements{
-			{
-				NewAssign: &golang.NewAssignment{
-					Left:  []string{"driverName", "dsn", "idleConns", "connMaxLifetime"},
-					Right: golang.NewLits(dbConf.DriverName, dsn, dbConf.ConnectionPoolConfig.MaxIdleConns, dbConf.ConnectionConfig.MaxLifetimeMins),
-				},
-			},
-			goutils.FCEHNewOutReceiverArgsCE([]string{"db", "err"}, "sql", "Open",
-				[]string{"driverName", "dsn"}, goutils.EHError("err")),
-
-			goutils.FCEHOutReceiverArgsCE([]string{"err"}, "db", "Ping", nil, goutils.EHError("err")),
-			goutils.FCReceiverArgsCE("db", "SetMaxIdleConns", "idleConns"),
-			goutils.FCReceiverArgsCE("db", "SetConnMaxLifetime", &golang.Mul{BinaryOp: golang.BinaryOp{
-				Left: &golang.Literal{Value: "time", Attribute: "Minute"}, Right: "connMaxLifetime"}}),
+			goutils.FCEHNewOutCE([]string{"db", "err"}, "SetupDBConnection", goutils.EHError("err")),
 			returnValuesCE("nil"),
 		},
-	}, nil
+	}
+	return fn, nil
 }

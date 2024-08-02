@@ -88,6 +88,7 @@ type DatabaseConfig struct {
 }
 
 type DataConfig struct {
+	FamilyName     string          `yaml:"family_name"`
 	Models         []ModelConfig   `yaml:"models"`
 	DatabaseConfig *DatabaseConfig `yaml:"connection_config,omitempty"`
 }

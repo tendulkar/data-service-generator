@@ -52,9 +52,9 @@ func TestGenerateStructWithNewFunction(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			st, fn := GenerateStructWithNewFunction(tc.structName, tc.structSuffix, tc.nameWithTypes, tc.addJsonTag, tc.addYamlTag, tc.addDBTag)
-			t.Log(st.StructCode())
-			t.Log(fn.FunctionCode())
+			st, fn := GenStructWithNewFunction(tc.structName, tc.nameWithTypes, false, tc.addJsonTag, tc.addYamlTag, tc.addDBTag)
+			// t.Log(st.StructCode())
+			// t.Log(fn.FunctionCode())
 			stCode, _ := st.StructCode()
 			fnCode, _ := fn.FunctionCode()
 			assert.Equal(t, tc.expectedStructCode, stCode)

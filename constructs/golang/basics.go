@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"go/format"
+	"log"
 	"strings"
 )
 
@@ -65,6 +66,8 @@ var (
 	GoStringStringMapType       = &GoType{Name: "map[string]string", DefaultValue: "nil"}
 	GoStringInterfaceMapType    = &GoType{Name: "map[string]interface{}", DefaultValue: "nil"}
 	GoInterfaceInterfaceMapType = &GoType{Name: "map[interface{}]interface{}", DefaultValue: "nil"}
+	GoTimeType                  = &GoType{Name: "time.Time", Source: "time", DefaultValue: "time.Time{}"}
+	GoDurationType              = &GoType{Name: "time.Duration", Source: "time", DefaultValue: "time.Duration(0)"}
 )
 
 // typeMap maps type names to their corresponding GoType structs
@@ -119,6 +122,8 @@ var typeMap = map[string]*GoType{
 	"map[string]string":           GoStringStringMapType,
 	"map[string]interface{}":      GoStringInterfaceMapType,
 	"map[interface{}]interface{}": GoInterfaceInterfaceMapType,
+	"time.Time":                   GoTimeType,
+	"time.Duration":               GoDurationType,
 }
 
 var zeorValueMap map[string]string
@@ -156,36 +161,13 @@ type Parameter struct {
 	Type *GoType `yaml:"type"`
 }
 
-// GoCodeBlock represents a block of code with optional additional imports.
-type GoCodeBlock struct {
-	CodeBlock string
-	Sources   []string // Additional import paths required by the code block
-}
-
-type GoReturnType struct {
-	GoType  *GoType `yaml:"type"`
-	VarName string  `yaml:"var_name,omitempty"`
-}
-
-type Variable struct {
-	Name  string  `yaml:"name"`
-	Type  *GoType `yaml:"type,omitempty"`
-	Value string  `yaml:"value"`
-}
-
-type Constant struct {
-	Name  string  `yaml:"name"`
-	Type  *GoType `yaml:"type,omitempty"`
-	Value string  `yaml:"value"`
-}
-
 type Dependency struct {
 	Source  string `yaml:"source"`
 	Version string `yaml:"version"`
 }
 
-// Function represents a Go function definition.
-type Function struct {
+// FunctionDef represents a Go function definition.
+type FunctionDef struct {
 	Name         string       `yaml:"name,omitempty"`
 	Parameters   []*Parameter `yaml:"params,omitempty"`
 	Returns      []*Parameter `yaml:"returns,omitempty"`
@@ -210,11 +192,11 @@ type Field struct {
 	AddDBTag   bool    `yaml:"add_db_tag,omitempty"`
 }
 
-// Struct represents a Go struct with member functions.
-type Struct struct {
-	Name      string      `yaml:"name,omitempty"`
-	Fields    []*Field    `yaml:"fields,omitempty"` // Using Parameter as it has both name and type
-	Functions []*Function `yaml:"functions,omitempty"`
+// StructDef represents a Go struct with member functions.
+type StructDef struct {
+	Name      string         `yaml:"name,omitempty"`
+	Fields    []*Field       `yaml:"fields,omitempty"` // Using Parameter as it has both name and type
+	Functions []*FunctionDef `yaml:"functions,omitempty"`
 
 	// Additional import paths, not all imports, call StructCode to get all imports
 	Imports      []string     `yaml:"imports,omitempty"`
@@ -251,7 +233,7 @@ func generateFieldTag(field *Field) string {
 }
 
 // StructCode generates the Go code for the struct, including its member functions.
-func (s Struct) StructCode() (string, map[string]bool) {
+func (s StructDef) StructCode() (string, map[string]bool) {
 	fieldStrs := make([]string, len(s.Fields))
 	for i, field := range s.Fields {
 		typeName := field.Type.Name
@@ -281,7 +263,7 @@ func (s Struct) StructCode() (string, map[string]bool) {
 }
 
 // FunctionCode generates the Go code for the function, including necessary imports.
-func (f Function) FunctionCode() (string, map[string]bool) {
+func (f FunctionDef) FunctionCode() (string, map[string]bool) {
 	// Generate parameters string
 	var params []string
 	for _, param := range f.Parameters {
@@ -331,13 +313,13 @@ func (f Function) FunctionCode() (string, map[string]bool) {
 // Imports are automatically derived from each block,
 // Variables, Constants, Structs, Functions, and InitFunction have their own sources, automatically gets added to allImports
 type GoSourceFile struct {
-	Package      string       `yaml:"package,omitempty"`
-	Variables    []*Variable  `yaml:"variables,omitempty"`
-	Constants    []*Constant  `yaml:"constants,omitempty"`
-	Structs      []*Struct    `yaml:"structs,omitempty"`
-	Functions    []*Function  `yaml:"functions,omitempty"`
-	InitFunction CodeElements `yaml:"init,omitempty"`
-	MainFunction CodeElements `yaml:"main,omitempty"`
+	Package      string         `yaml:"package,omitempty"`
+	Variables    []*Variable    `yaml:"variables,omitempty"`
+	Constants    []*Constant    `yaml:"constants,omitempty"`
+	Structs      []*StructDef   `yaml:"structs,omitempty"`
+	Functions    []*FunctionDef `yaml:"functions,omitempty"`
+	InitFunction CodeElements   `yaml:"init,omitempty"`
+	MainFunction CodeElements   `yaml:"main,omitempty"`
 	// Additional import paths, not all imports
 	Imports      []string     `yaml:"imports,omitempty"`
 	Dependencies []Dependency `yaml:"dependencies,omitempty"`
@@ -418,7 +400,7 @@ func formatReturnTypes(returns []string) string {
 
 // GenerateGoFile generates a complete Go source file including the specified package name,
 // structs, functions, and standalone functions.
-func GenerateGoFile(packageName string, structs []*Struct, functions []*Function,
+func GenerateGoFile(packageName string, structs []*StructDef, functions []*FunctionDef,
 	variables []*Variable, constants []*Constant, initFunction CodeElements, mainFunction CodeElements,
 	additionalImports []string, dependencies []Dependency) (string, map[Dependency]bool, error) {
 	var buffer bytes.Buffer
@@ -469,26 +451,11 @@ func GenerateGoFile(packageName string, structs []*Struct, functions []*Function
 	}
 
 	for _, v := range variables {
-		variableTypeWithSpace := ""
-		if v.Type != nil {
-			variableTypeWithSpace = fmt.Sprintf(" %s", v.Type.Name)
-		}
-		variableDefinitions = append(variableDefinitions, fmt.Sprintf("var %s%s = %s", v.Name, variableTypeWithSpace, v.Value))
-		if v.Type != nil && v.Type.Source != "" {
-			allImports[v.Type.Source] = true
-		}
-
+		variableDefinitions = append(variableDefinitions, fmt.Sprintf("%s\n", v.ToCode()))
 	}
 
 	for _, c := range constants {
-		constantTypeWithSpace := ""
-		if c.Type != nil {
-			constantTypeWithSpace = fmt.Sprintf(" %s", c.Type.Name)
-		}
-		constantDefinitions = append(constantDefinitions, fmt.Sprintf("const %s%s = %s", c.Name, constantTypeWithSpace, c.Value))
-		if c.Type != nil && c.Type.Source != "" {
-			allImports[c.Type.Source] = true
-		}
+		constantDefinitions = append(constantDefinitions, fmt.Sprintf("%s\n", c.ToCode()))
 	}
 
 	if initFunction != nil {
@@ -550,6 +517,7 @@ func GenerateGoFile(packageName string, structs []*Struct, functions []*Function
 
 	srcCode, err := format.Source(buffer.Bytes())
 	if err != nil {
+		log.Fatalf("Error formatting generated code: %s, buffer: %s", err, buffer.String())
 		return "", allDependencies, err
 	}
 	return string(srcCode), allDependencies, nil
@@ -573,7 +541,7 @@ func collectImports(allImports map[string]bool, parameters []*Parameter, fields 
 	}
 }
 
-func collectFunctionImports(allImports map[string]bool, function *Function) {
+func collectFunctionImports(allImports map[string]bool, function *FunctionDef) {
 	collectImports(allImports, function.Parameters, nil, function.Returns)
 	for _, ce := range function.Body {
 		for _, src := range ce.Imports {

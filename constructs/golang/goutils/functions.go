@@ -41,8 +41,8 @@ func (fb *FuncBuilder) AddReturn(returns ...interface{}) *FuncBuilder {
 	return fb
 }
 
-func (fb *FuncBuilder) Build() *golang.Function {
-	return &golang.Function{
+func (fb *FuncBuilder) Build() *golang.FunctionDef {
+	return &golang.FunctionDef{
 		Receiver:     fb.receiver,
 		Name:         fb.funcName,
 		Parameters:   fb.params,

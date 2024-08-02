@@ -58,7 +58,7 @@ func TestTranslateToGoType(t *testing.T) {
 }
 
 func TestFunctionCodeGeneration(t *testing.T) {
-	f := Function{
+	f := FunctionDef{
 		Name: "Update",
 		Parameters: []*Parameter{
 			{Name: "data", Type: &GoType{Name: "*Data", Source: "github.com/example/data"}},
@@ -101,13 +101,13 @@ func TestFunctionCodeGeneration(t *testing.T) {
 
 func TestStructCodeGeneration(t *testing.T) {
 
-	s := Struct{
+	s := StructDef{
 		Name: "Processor",
 		Fields: []*Field{
 			{Name: "Data", Type: &GoType{Name: "Data", Source: "github.com/example/data"}},
 			{Name: "Logger", Type: &GoType{Name: "Logger", Source: "github.com/sirupsen/logrus"}},
 		},
-		Functions: []*Function{
+		Functions: []*FunctionDef{
 			{
 				Name: "Process",
 				Parameters: []*Parameter{
@@ -154,13 +154,13 @@ func TestStructCodeGeneration(t *testing.T) {
 }
 func TestGenerateGoFile(t *testing.T) {
 	// Define structs, functions, variables, constants, and init function
-	structs := []*Struct{
+	structs := []*StructDef{
 		{
 			Name: "Logger",
 			Fields: []*Field{
 				{Name: "Level", Type: &GoType{Name: "int", Source: ""}},
 			},
-			Functions: []*Function{
+			Functions: []*FunctionDef{
 				{
 					Name:       "SetLevel",
 					Parameters: []*Parameter{{Name: "level", Type: &GoType{Name: "int", Source: ""}}},
@@ -178,7 +178,7 @@ func TestGenerateGoFile(t *testing.T) {
 			},
 		},
 	}
-	functions := []*Function{
+	functions := []*FunctionDef{
 		{
 			Name:       "NewLogger",
 			Parameters: []*Parameter{},
@@ -193,10 +193,10 @@ func TestGenerateGoFile(t *testing.T) {
 		},
 	}
 	variables := []*Variable{
-		{Name: "defaultLogger", Type: &GoType{Name: "*Logger"}, Value: "NewLogger()"},
+		{Names: "defaultLogger", Type: "Logger", IsReference: true, Values: "NewLogger()"},
 	}
 	constants := []*Constant{
-		{Name: "DefaultLevel", Type: &GoType{Name: "int"}, Value: "1"},
+		{Name: "DefaultLevel", Type: "int", Value: 1},
 	}
 	initFunction := CodeElements{
 		{

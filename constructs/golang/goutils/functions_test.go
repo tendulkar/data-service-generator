@@ -50,7 +50,7 @@ func TestFuncBuilder_Build(t *testing.T) {
 		},
 	}
 
-	expectedFunction := &golang.Function{
+	expectedFunction := &golang.FunctionDef{
 		Receiver:     receiver,
 		Name:         funcName,
 		Parameters:   params,
