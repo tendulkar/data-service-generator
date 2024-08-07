@@ -89,7 +89,7 @@ type CodeElement struct {
 	Return interface{} `yaml:"return,omitempty"`
 
 	// Create struct with fields, for example `&Point{x: 1, y: 2}`
-	StructCreation *StructCreation `yaml:"create,omitempty"`
+	StructCreation *MakeStruct `yaml:"create,omitempty"`
 
 	// Function call, Examples are
 	// FunctionCall{Function: "Signal"} will generate `Signal()`
@@ -172,14 +172,14 @@ func (c CodeElements) Dependencies() []Dependency {
 type BinaryOp struct {
 	Left      interface{} `yaml:"left"`
 	Right     interface{} `yaml:"right"`
-	Output    string      `yaml:"out,omitempty"`
-	NewOutput string      `yaml:"nout,omitempty"`
+	Output    interface{} `yaml:"out,omitempty"`
+	NewOutput interface{} `yaml:"nout,omitempty"`
 }
 
 type UnaryOp struct {
 	Input     interface{} `yaml:"in"`
 	Output    interface{} `yaml:"out,omitempty"`
-	NewOutput string      `yaml:"nout,omitempty"`
+	NewOutput interface{} `yaml:"nout,omitempty"`
 }
 
 type Add struct {
@@ -379,7 +379,7 @@ type KeyValue struct {
 
 type KeyValues []*KeyValue
 
-type StructCreation struct {
+type MakeStruct struct {
 	Output      interface{} `yaml:"out,omitempty"`
 	NewOutput   interface{} `yaml:"nout,omitempty"`
 	ModuleName  string      `yaml:"module_name"`
@@ -462,7 +462,7 @@ func resolveArrayInterface(arr []interface{}, sep string) string {
 	// base.LOG.Info("resolveArrayInterface", "array", arr)
 	values := make([]string, len(arr))
 	for i, v := range arr {
-		values[i] = resolveStringOrCodeElement(v, sep)
+		values[i] = resolveStringOrCodeElement(v, 1, sep)
 	}
 
 	return strings.Join(values, sep)
@@ -494,24 +494,24 @@ func resolveLiteral(v interface{}) string {
 }
 
 func binaryOpToCode(op string, b *BinaryOp) string {
-	lvalue := resolveStringOrCodeElement(b.Left, ", ")
-	rvalue := resolveStringOrCodeElement(b.Right, ", ")
+	lvalue := resolveStringOrCodeElement(b.Left, 0, ", ")
+	rvalue := resolveStringOrCodeElement(b.Right, 0, ", ")
 
-	if b.Output == "" && b.NewOutput == "" {
+	if b.Output == nil && b.NewOutput == nil {
 		return fmt.Sprintf("(%s %s %s)", lvalue, op, rvalue)
-	} else if b.NewOutput == "" {
-		return fmt.Sprintf("%s = (%s %s %s)", b.Output, lvalue, op, rvalue)
+	} else if b.Output != nil {
+		return fmt.Sprintf("%s = (%s %s %s)", resolveStringOrCodeElement(b.Output, 0, ", "), lvalue, op, rvalue)
 	} else {
-		return fmt.Sprintf("%s := (%s %s %s)", b.NewOutput, lvalue, op, rvalue)
+		return fmt.Sprintf("%s := (%s %s %s)", resolveStringOrCodeElement(b.NewOutput, 0, ", "), lvalue, op, rvalue)
 	}
 }
 
 func unaryOpToCode(op string, u *UnaryOp) string {
-	inpValue := resolveStringOrCodeElement(u.Input, ", ")
+	inpValue := resolveStringOrCodeElement(u.Input, 0, ", ")
 
-	if u.Output == "" && u.NewOutput == "" {
+	if u.Output == nil && u.NewOutput == nil {
 		return fmt.Sprintf("%s %s", op, inpValue)
-	} else if u.NewOutput == "" {
+	} else if u.Output == nil {
 		return fmt.Sprintf("%s = %s%s", u.Output, op, inpValue)
 	} else {
 		return fmt.Sprintf("%s := %s%s", u.NewOutput, op, inpValue)
@@ -519,7 +519,7 @@ func unaryOpToCode(op string, u *UnaryOp) string {
 }
 
 func unaryPostOpToCode(op string, u *UnaryOp) string {
-	inpValue := resolveStringOrCodeElement(u.Input, ", ")
+	inpValue := resolveStringOrCodeElement(u.Input, 0, ", ")
 	if u.Output == "" && u.NewOutput == "" {
 		return fmt.Sprintf("%s %s", inpValue, op)
 	} else if u.NewOutput == "" {
@@ -625,7 +625,7 @@ func (p *PreDecrement) ToCode() string {
 	return unaryOpToCode("--", &p.UnaryOp)
 }
 
-func resolveStringOrCodeElement(v interface{}, sep string) string {
+func resolveStringOrCodeElement(v interface{}, indentSize int, sep string) string {
 	// base.LOG.Info("resolveStringOrCodeElement", "value", v, "sep", sep)
 	switch rv := v.(type) {
 	case []interface{}:
@@ -643,7 +643,7 @@ func resolveStringOrCodeElement(v interface{}, sep string) string {
 		}
 		return strings.Join(codeParts, sep)
 	case []*CodeElement:
-		return bodyCodeGen(rv)
+		return bodyCodeGen(rv, indentSize, sep)
 	case *CodeElement:
 		return rv.ToCode()
 	case CodeBlock:
@@ -697,7 +697,7 @@ func buildContinueStatement(v interface{}) string {
 
 func bodyWithBreakAndContinue(body []*CodeElement, b interface{}, c interface{}) string {
 
-	bodyCode := resolveStringOrCodeElement(body, "\n")
+	bodyCode := resolveStringOrCodeElement(body, 1, "\n")
 	if b == nil && c == nil {
 		return bodyCode
 	}
@@ -718,12 +718,12 @@ func (vc *Variable) ToCode() string {
 		typeName = fmt.Sprintf("*%s", typeName)
 	}
 
-	valueName := resolveStringOrCodeElement(vc.Values, ", ")
+	valueName := resolveStringOrCodeElement(vc.Values, 0, ", ")
 	if valueName != "" {
 		valueName = fmt.Sprintf(" = %s", valueName)
 	}
 
-	names := resolveStringOrCodeElement(vc.Names, ", ")
+	names := resolveStringOrCodeElement(vc.Names, 0, ", ")
 	return fmt.Sprintf("var %s %s%s", names, typeName, valueName)
 }
 
@@ -733,27 +733,27 @@ func (c *Constant) ToCode() string {
 		typeNameWithSpace = fmt.Sprintf(" %s", c.Type)
 	}
 
-	valueName := resolveStringOrCodeElement(c.Value, ", ")
-	varName := resolveStringOrCodeElement(c.Name, "")
+	valueName := resolveStringOrCodeElement(c.Value, 0, ", ")
+	varName := resolveStringOrCodeElement(c.Name, 0, "")
 
 	return fmt.Sprintf("const %s%s = %s", varName, typeNameWithSpace, valueName)
 }
 
 // Implementation of ToCode for each struct
 func (a *Assignment) ToCode() string {
-	leftSide := resolveStringOrCodeElement(a.Left, ", ")
-	rightSide := resolveStringOrCodeElement(a.Right, ", ")
+	leftSide := resolveStringOrCodeElement(a.Left, 0, ", ")
+	rightSide := resolveStringOrCodeElement(a.Right, 0, ", ")
 	return fmt.Sprintf("%s = %s", leftSide, rightSide)
 }
 
 func (na *NewAssignment) ToCode() string {
-	leftSide := resolveStringOrCodeElement(na.Left, ", ")
-	rightSide := resolveStringOrCodeElement(na.Right, ", ")
+	leftSide := resolveStringOrCodeElement(na.Left, 0, ", ")
+	rightSide := resolveStringOrCodeElement(na.Right, 0, ", ")
 	return fmt.Sprintf("%s := %s", leftSide, rightSide)
 }
 
 func (ie *IfElement) ToCode() string {
-	condCode := resolveStringOrCodeElement(ie.Condition, " && ")
+	condCode := resolveStringOrCodeElement(ie.Condition, 0, " && ")
 	thenCode := bodyWithBreakAndContinue(ie.Then, ie.Break, ie.Continue)
 	if len(ie.Else) > 0 {
 		elseCode := bodyWithBreakAndContinue(ie.Else, ie.BreakElse, ie.ContinueElse)
@@ -765,7 +765,7 @@ func (ie *IfElement) ToCode() string {
 func (ce CaseElement) ToCode() string {
 	code := ""
 	for i, caseElem := range ce {
-		condCode := resolveStringOrCodeElement(caseElem.Condition, " && ")
+		condCode := resolveStringOrCodeElement(caseElem.Condition, 0, " && ")
 		bodyCode := bodyWithBreakAndContinue(caseElem.Body, caseElem.Break, caseElem.Continue)
 		base.LOG.Info("Case element", "i", i, "caseElem", caseElem, "condCode", condCode, "bodyCode", bodyCode)
 		if i == 0 {
@@ -782,8 +782,8 @@ func (ce CaseElement) ToCode() string {
 func (mc MatchCases) ToCode() string {
 	code := ""
 	for _, caseElem := range mc.MatchCases {
-		condCode := resolveStringOrCodeElement(caseElem.MatchWith, ", ")
-		bodyCode := resolveStringOrCodeElement(caseElem.Body, "\n")
+		condCode := resolveStringOrCodeElement(caseElem.MatchWith, 0, ", ")
+		bodyCode := resolveStringOrCodeElement(caseElem.Body, 0, "\n")
 		if condCode == "" {
 			code = fmt.Sprintf("\ndefault:\n%s%s", Indent, bodyCode)
 		} else {
@@ -794,22 +794,22 @@ func (mc MatchCases) ToCode() string {
 	return code
 }
 
-func bodyCodeGen(body []*CodeElement) string {
+func bodyCodeGen(body []*CodeElement, indentSize int, sep string) string {
 	var bodyStrings []string
 	for _, b := range body {
 		bCode := b.ToCode()
 		if bCode == "" {
 			continue
 		}
-		indentedBody := IndentCode(bCode, 1)
+		indentedBody := IndentCode(bCode, indentSize)
 		bodyStrings = append(bodyStrings, indentedBody)
 	}
-	return strings.Join(bodyStrings, "\n")
+	return strings.Join(bodyStrings, sep)
 }
 
 // ToCode for RepeatByCondition: Repeats based on a condition (like a 'while' loop in other languages)
 func (r *RepeatByCondition) ToCode() string {
-	bodyCode := bodyCodeGen(r.Body)
+	bodyCode := bodyCodeGen(r.Body, 1, "\n")
 	return fmt.Sprintf("for %s {\n%s\n}", r.Condition.ToCode(), bodyCode)
 }
 
@@ -820,7 +820,7 @@ func (ric *RepeatInitConditionElement) ToCode() string {
 		initStrings = append(initStrings, i.ToCode())
 	}
 
-	bodyCode := bodyCodeGen(ric.Body)
+	bodyCode := bodyCodeGen(ric.Body, 1, "\n")
 	return fmt.Sprintf("for %s; %s; {\n%s\n}", strings.Join(initStrings, ", "), ric.Condition.ToCode(), bodyCode)
 }
 
@@ -834,12 +834,12 @@ func (rl *RepeatLoopElement) ToCode() string {
 		stepStrings = append(stepStrings, s.ToCode())
 	}
 
-	bodyCode := bodyCodeGen(rl.Body)
+	bodyCode := bodyCodeGen(rl.Body, 1, "\n")
 	return fmt.Sprintf("for %s; %s; %s {\n%s\n}", strings.Join(initStrings, ", "), rl.Condition.ToCode(), strings.Join(stepStrings, ", "), bodyCode)
 }
 
 func (rn *RepeatNElement) ToCode() string {
-	bodyCode := bodyCodeGen(rn.Body)
+	bodyCode := bodyCodeGen(rn.Body, 1, "\n")
 	start := "0"
 	if rn.Start != "" {
 		start = rn.Start
@@ -849,7 +849,7 @@ func (rn *RepeatNElement) ToCode() string {
 
 // ToCode for IterateElement: 'for' loop for iterating over slices, arrays, or maps
 func (it *IterateElement) ToCode() string {
-	bodyCode := bodyCodeGen(it.Body)
+	bodyCode := bodyCodeGen(it.Body, 1, "\n")
 	return fmt.Sprintf("for %s := range %s {\n%s\n}", strings.Join(it.Variables, ", "), it.RangeOn.ToCode(), bodyCode)
 }
 
@@ -858,7 +858,7 @@ func (kv *KeyValue) ToCode() string {
 	if kv.Value != nil {
 		value = resolveLiteral(kv.Value)
 	} else if kv.Variable != nil {
-		value = resolveStringOrCodeElement(kv.Variable, ", ")
+		value = resolveStringOrCodeElement(kv.Variable, 0, ", ")
 	}
 	return fmt.Sprintf("%s: %s", kv.Key, value)
 }
@@ -872,7 +872,7 @@ func (kvs KeyValues) ToCode() string {
 	return strings.Join(kvCodeParts, "")
 }
 
-func (sc *StructCreation) ToCode() string {
+func (sc *MakeStruct) ToCode() string {
 	leftSide := resolveOutputs(sc.Output, sc.NewOutput)
 	fieldsCode := IndentCode(sc.KeyValues.ToCode(), 1)
 	typeName := sc.StructType
@@ -892,10 +892,10 @@ func resolveOutputs(output, newOutput interface{}) string {
 
 	// output or newOutput could be literal like array/map index, so resolveStringOrCdoeElement will do that
 	if output != nil {
-		return fmt.Sprintf("%s = ", resolveStringOrCodeElement(output, ", "))
+		return fmt.Sprintf("%s = ", resolveStringOrCodeElement(output, 0, ", "))
 	}
 
-	return fmt.Sprintf("%s := ", resolveStringOrCodeElement(newOutput, ", "))
+	return fmt.Sprintf("%s := ", resolveStringOrCodeElement(newOutput, 0, ", "))
 }
 
 func findZeroValues(params []*Parameter, errName string) []string {
@@ -913,7 +913,7 @@ func findZeroValues(params []*Parameter, errName string) []string {
 
 func (fc *FunctionCall) ToCode() string {
 	leftSide := resolveOutputs(fc.Output, fc.NewOutput)
-	argsCode := resolveStringOrCodeElement(fc.Args, ", ")
+	argsCode := resolveStringOrCodeElement(fc.Args, 0, ", ")
 	fnName := fc.Function
 	// base.LOG.Info("FunctionCall ToCode", "fc", *fc, "leftSide", leftSide, "params", argsCode)
 	if fc.Receiver != "" {
@@ -952,7 +952,7 @@ func (l *Literal) ToCode() string {
 			indicesCode = append(indicesCode, fmt.Sprintf("[%s]", resolveLiteral(l.Indexes)))
 		}
 
-		return fmt.Sprintf("%s%s", resolveStringOrCodeElement(l.Value, ", "), strings.Join(indicesCode, ""))
+		return fmt.Sprintf("%s%s", resolveStringOrCodeElement(l.Value, 0, ", "), strings.Join(indicesCode, ""))
 	}
 
 	if l.Attribute != nil {
@@ -968,7 +968,7 @@ func (l *Literal) ToCode() string {
 				attributes = append(attributes, resolveLiteral(l.Attribute))
 			}
 		}
-		return fmt.Sprintf("%s.%s", resolveStringOrCodeElement(l.Value, ", "), strings.Join(attributes, "."))
+		return fmt.Sprintf("%s.%s", resolveStringOrCodeElement(l.Value, 0, ", "), strings.Join(attributes, "."))
 	}
 	if l.Type == "" {
 		return resolveLiteral(l.Value)
@@ -998,7 +998,7 @@ func (eh *ErrorHandler) ToCode() string {
 	if eh.ErrorReturns != nil {
 		errPart = IndentCode(ReturnToCode(eh.ErrorReturns), 1)
 	} else if eh.ErrorSteps != nil {
-		errPart = bodyCodeGen(eh.ErrorSteps)
+		errPart = bodyCodeGen(eh.ErrorSteps, 1, "\n")
 	} else if eh.ErrorFunctionReturns != nil {
 		errPart = IndentCode(ReturnToCode(findZeroValues(eh.ErrorFunctionReturns, errName)), 1)
 	} else {
@@ -1011,7 +1011,7 @@ func (eh *ErrorHandler) ToCode() string {
 
 func (ch *CleanningHandler) ToCode() string {
 
-	argsCode := resolveStringOrCodeElement(ch.Args, ", ")
+	argsCode := resolveStringOrCodeElement(ch.Args, 0, ", ")
 	if ch.Steps == nil && ch.Function == "" {
 		return ""
 	} else if ch.Steps == nil {
@@ -1021,7 +1021,7 @@ func (ch *CleanningHandler) ToCode() string {
 		}
 		return fmt.Sprintf("defer %s(%s)", fnName, argsCode)
 	} else {
-		bodyCode := bodyCodeGen(ch.Steps)
+		bodyCode := bodyCodeGen(ch.Steps, 1, "\n")
 		return fmt.Sprintf("defer func(%s) {\n%s\n} ()", bodyCode, argsCode)
 	}
 }
@@ -1194,7 +1194,7 @@ func NewAssignToCode(a *NewAssignment) string {
 }
 
 func ReturnToCode(a interface{}) string {
-	return fmt.Sprintf("return %v", resolveStringOrCodeElement(a, ", "))
+	return fmt.Sprintf("return %v", resolveStringOrCodeElement(a, 0, ", "))
 }
 
 func IfErrorToCode(ce CodeElements) string {

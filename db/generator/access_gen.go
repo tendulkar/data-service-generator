@@ -59,7 +59,7 @@ func GenerateDB(dataConfig *defs.DataConfig) ([]*golang.UnitModule, error) {
 
 	}
 
-	st, fn, dbvar, err := GenerateFamily(dataConfig.FamilyName, modelNameMaps)
+	st, fn, dbvar, err := GenerateFamily(dataConfig, modelNameMaps)
 	if err != nil {
 		base.LOG.Error("GenerateDB::Error generating code for family %s: %v", dataConfig.FamilyName, err)
 		return nil, err
@@ -78,13 +78,13 @@ func GenerateDB(dataConfig *defs.DataConfig) ([]*golang.UnitModule, error) {
 
 }
 
-func GenerateFamily(familyName string, modelNameMaps modelNameMappings) ([]*golang.StructDef, []*golang.FunctionDef, []*golang.Variable, error) {
+func GenerateFamily(dataConf *defs.DataConfig, modelNameMaps modelNameMappings) ([]*golang.StructDef, []*golang.FunctionDef, []*golang.Variable, error) {
 
 	structs := make([]*golang.StructDef, 0)
 	functions := make([]*golang.FunctionDef, 0)
 
-	structName := golang.ToCamelCase(familyName)
-	varName := golang.ToPascalCase(familyName)
+	structName := golang.ToCamelCase(dataConf.FamilyName)
+	varName := golang.ToPascalCase(dataConf.FamilyName)
 	nameWithTypes := make([]golang.NameWithType, 0, 1)
 
 	for _, nameMap := range modelNameMaps {
@@ -92,7 +92,7 @@ func GenerateFamily(familyName string, modelNameMaps modelNameMappings) ([]*gola
 		modelName := nameMap.ModelStructName
 		nameWithTypes = append(nameWithTypes, golang.NameWithType{
 			Name: modelName,
-			Type: &golang.GoType{Name: modelName},
+			Type: &golang.GoType{Name: fmt.Sprintf("*%s", nameMap.ModelDBStructName)},
 		})
 	}
 
@@ -102,6 +102,12 @@ func GenerateFamily(familyName string, modelNameMaps modelNameMappings) ([]*gola
 		return nil, nil, nil, err
 	}
 	structs = append(structs, st)
+	functions = append(functions, fn)
+
+	fn, err = SetupDBConnectionFunction(dataConf)
+	if err != nil {
+		return nil, nil, nil, err
+	}
 	functions = append(functions, fn)
 
 	varDeclare := []*golang.Variable{{
@@ -223,7 +229,7 @@ func Generate(config defs.ModelConfig) (*golang.GoSourceFile, *modelNameMapping,
 	// PrepareStmt function will prepare all queries for a given model
 	// Make sure allQueries have been populated,
 	// so don't move the PrepareStmtFunction call to the above geneateAllAccessMethods
-	prepareFn := PrepareStmtFunction(modelName, allQueries)
+	prepareFn := PrepareStmtsFunction(modelName, allQueries)
 	allFunctions = append(allFunctions, prepareFn)
 
 	goSrc := &golang.GoSourceFile{
@@ -268,7 +274,12 @@ func geneateAllAccessMethods(config defs.ModelConfig, modelName string, modelDBN
 
 func generateParamsStruct(paramRefs []defs.ParameterRef, name string) *golang.StructDef {
 	nameWithTypes := make([]golang.NameWithType, 0, len(paramRefs))
+	uniqueParams := make(map[string]bool)
 	for _, param := range paramRefs {
+		if _, ok := uniqueParams[param.Name]; ok {
+			continue
+		}
+		uniqueParams[param.Name] = true
 		nameWithTypes = append(nameWithTypes, golang.NameWithType{
 			Name: param.Name,
 			Type: golang.GoInterfaceType,
@@ -349,6 +360,10 @@ func GenerateFindConfigs(modelName string, modelDBName string, findConfig []defs
 		paramFn := ReadParamsFunction(paramRefs, conf.Name, "values", "params")
 		functions = append(functions, paramFn)
 
+		attributes := conf.Attributes[:]
+		for i := 0; i < len(attributes); i++ {
+			attributes[i] = golang.ToPascalCase(attributes[i])
+		}
 		fn := FindCodeFunction(modelName, modelDBName, conf.Name, conf.Attributes)
 		functions = append(functions, fn)
 	}

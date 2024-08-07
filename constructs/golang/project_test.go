@@ -199,7 +199,7 @@ func TestModule_GenerateModuleCode(t *testing.T) {
 			{Source: "github.com/google/uuid", Version: "v1.0.0"},
 			{Source: "github.com/stretchr/testify", Version: "v1.7.0"},
 		},
-		Units: []UnitModule{
+		Units: []*UnitModule{
 			{
 				Name: "testUnit1",
 				Functions: []*FunctionDef{
@@ -227,7 +227,7 @@ func TestModule_GenerateModuleCode(t *testing.T) {
 		ChildModules: []*Module{
 			{
 				Name: "testChildModule1",
-				Units: []UnitModule{
+				Units: []*UnitModule{
 					{
 						Name: "testChildUnit1",
 						Functions: []*FunctionDef{
@@ -248,7 +248,7 @@ func TestModule_GenerateModuleCode(t *testing.T) {
 			},
 			{
 				Name: "testChildModule2",
-				Units: []UnitModule{
+				Units: []*UnitModule{
 					{
 						Name: "testChildUnit2",
 						Functions: []*FunctionDef{
@@ -387,7 +387,7 @@ func TestGenerateProject(t *testing.T) {
 		Modules: []*Module{
 			{
 				Name: "testModule1",
-				Units: []UnitModule{
+				Units: []*UnitModule{
 					{
 						Name: "testUnit1",
 						Functions: []*FunctionDef{
@@ -404,7 +404,7 @@ func TestGenerateProject(t *testing.T) {
 			},
 			{
 				Name: "testModule2",
-				Units: []UnitModule{
+				Units: []*UnitModule{
 					{
 						Name: "testUnit2",
 						Functions: []*FunctionDef{

@@ -809,7 +809,7 @@ steps:
 
 func TestStructCreation_ToCode(t *testing.T) {
 
-	st := StructCreation{
+	st := MakeStruct{
 		NewOutput:  "user1",
 		StructType: "User",
 		KeyValues: KeyValues{

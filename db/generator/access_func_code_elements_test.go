@@ -200,7 +200,7 @@ func TestReadParamsFunction(t *testing.T) {
 	// assert.Equal(t, resultFunction, expectedFunction)
 }
 
-func TestPrepareStmtFunction(t *testing.T) {
+func TestPrepareStmtsFunction(t *testing.T) {
 	queries := []NamedQuery{
 		{"query1", "SELECT * FROM table1 WHERE id = $1 AND name = $2"},
 		{"query2", "INSERT INTO table2 (id, name, age) VALUES ($1, $2, $3)"},
@@ -209,7 +209,7 @@ func TestPrepareStmtFunction(t *testing.T) {
 		{"query5", "SELECT * FROM table5"},
 	}
 
-	expectedCode := `func UserPrepareStmt(db *sql.DB, queries map[string]string) (map[string]*sql.Stmt, error) {
+	expectedCode := `func UserPrepareStmts(db *sql.DB) (map[string]*sql.Stmt, error) {
 	preparedCache := make(map[string]*sql.Stmt)
 	var err error
 	preparedCache["query1"], err = db.Prepare("SELECT * FROM table1 WHERE id = $1 AND name = $2")
@@ -235,7 +235,7 @@ func TestPrepareStmtFunction(t *testing.T) {
 	return preparedCache, nil
 }`
 
-	actual := PrepareStmtFunction("User", queries)
+	actual := PrepareStmtsFunction("User", queries)
 	actualCode, _ := actual.FunctionCode()
 	t.Log(actualCode)
 	assert.Equal(t, expectedCode, actualCode)
@@ -243,7 +243,7 @@ func TestPrepareStmtFunction(t *testing.T) {
 
 func TestSetupDBConnectionFunction(t *testing.T) {
 	// Test case 1: Successful setup of the database
-	dataConf := defs.DataConfig{
+	dataConf := &defs.DataConfig{
 		Models: []defs.ModelConfig{{Model: defs.Model{Name: "Product"}}},
 		DatabaseConfig: &defs.DatabaseConfig{
 			DriverName: "postgres",
@@ -254,21 +254,25 @@ func TestSetupDBConnectionFunction(t *testing.T) {
 			Port:       5432,
 			DBName:     "postgres",
 			ConnectionConfig: &defs.ConnectionConfig{
+				IdleTimeoutSecs: 10,
 				MaxLifetimeMins: 30,
 			},
 			ConnectionPoolConfig: &defs.ConnectionPoolConfig{
 				MaxIdleConns: 10,
+				MaxOpenConns: 20,
 			},
 		},
 	}
-	expectedImports := []string{"database/sql", "github.com/lib/pq", "time"}
+	expectedImports := []string{"database/sql", "_ github.com/lib/pq", "time"}
 	expectedReturns := typeOnlyParamsCE("*sql.DB", "error")
 
 	fn, err := SetupDBConnectionFunction(dataConf)
 	fnCode, fnImports := fn.FunctionCode()
 
 	expectedFnCode := `func SetupDBConnection() (*sql.DB, error) {
-	driverName, dsn, idleConns, connMaxLifetime := "postgres", "user=postgres password=postgres dbname=postgres port=5432 host=localhost", 10, 30
+	driverName, dsn := "postgres", "user=postgres password=postgres dbname=postgres port=5432 host=localhost"
+	idleConnTimeout, connMaxLifetime := (time.Second * 10), (time.Minute * 30)
+	idleConns, maxOpenConns := 10, 20
 	db, err := sql.Open(driverName, dsn)
 	if err != nil {
 		return nil, err
@@ -278,7 +282,9 @@ func TestSetupDBConnectionFunction(t *testing.T) {
 		return nil, err
 	}
 	db.SetMaxIdleConns(idleConns)
-	db.SetConnMaxLifetime((time.Minute * connMaxLifetime))
+	db.SetMaxOpenConns(maxOpenConns)
+	db.SetConnMaxIdleTime(idleConnTimeout)
+	db.SetConnMaxLifetime(connMaxLifetime)
 	return db, nil
 }`
 
@@ -292,9 +298,9 @@ func TestSetupDBConnectionFunction(t *testing.T) {
 
 	// Test case 2: Check if the correct imports are present
 	assert.Equal(t, map[string]bool{
-		"database/sql":      true,
-		"github.com/lib/pq": true,
-		"time":              true,
+		"database/sql":        true,
+		"_ github.com/lib/pq": true,
+		"time":                true,
 	}, fnImports)
 }
 
@@ -327,11 +333,11 @@ func TestGenerateNewFamilyFunction(t *testing.T) {
 	t.Log(fn.FunctionCode())
 
 	expectedCode := `func InitRetailDB() error {
-	db, err = SetupDBConnection()
+	db, err := SetupDBConnection()
 	if err != nil {
 		return err
 	}
-	stmtMapUser, err = UserPrepareStmt()
+	stmtMapUser, err := UserPrepareStmt()
 	if err != nil {
 		return err
 	}
@@ -339,7 +345,7 @@ func TestGenerateNewFamilyFunction(t *testing.T) {
 		db: db,
 		preparedCache: stmtMapUser,
 	}
-	stmtMapProduct, err = ProductPrepareStmt()
+	stmtMapProduct, err := ProductPrepareStmt()
 	if err != nil {
 		return err
 	}
@@ -347,7 +353,7 @@ func TestGenerateNewFamilyFunction(t *testing.T) {
 		db: db,
 		preparedCache: stmtMapProduct,
 	}
-	stmtMapOrder, err = OrderPrepareStmt()
+	stmtMapOrder, err := OrderPrepareStmt()
 	if err != nil {
 		return err
 	}

@@ -159,9 +159,28 @@ func TestGenerateFamily(t *testing.T) {
 		{ModelName: "UserCart", ModelStructName: "UserCart", ModelDBStructName: "UserCart_DB"},
 	}
 
-	familyName := "EcommerceDB"
+	dataConf := &defs.DataConfig{
+		FamilyName: "EcommerceDB",
+		DatabaseConfig: &defs.DatabaseConfig{
+			DriverName: "postgres",
+			UserName:   "user",
+			Password:   "password",
+			Host:       "localhost",
+			Port:       5432,
+			DBName:     "ecommerce",
+			ConnectionConfig: &defs.ConnectionConfig{
+				IdleTimeoutSecs: 10,
+				MaxLifetimeMins: 30,
+			},
+			ConnectionPoolConfig: &defs.ConnectionPoolConfig{
+				MaxIdleConns: 5,
+				MaxOpenConns: 10,
+			},
+		}, // Just to avoid error returned by GenerateDB function
+		Models: []defs.ModelConfig{},
+	}
 
-	stDef, fnDef, vars, err := GenerateFamily(familyName, modelNameMaps)
+	stDef, fnDef, vars, err := GenerateFamily(dataConf, modelNameMaps)
 	assert.NoError(t, err)
 	assert.NotNil(t, stDef)
 	assert.NotNil(t, fnDef)
@@ -169,22 +188,28 @@ func TestGenerateFamily(t *testing.T) {
 
 	expectedSrcCode := `package database
 
+import (
+	"_ github.com/lib/pq"
+	"database/sql"
+	"time"
+)
+
 var EcommerceDb *ecommerceDb
 
 type ecommerceDb struct {
-	Product   Product
-	User      User
-	Order     Order
-	OrderItem OrderItem
-	UserCart  UserCart
+	Product   *Product_DB
+	User      *User_DB
+	Order     *Order_DB
+	OrderItem *OrderItem_DB
+	UserCart  *UserCart_DB
 }
 
 func InitEcommerceDb() error {
-	db, err = SetupDBConnection()
+	db, err := SetupDBConnection()
 	if err != nil {
 		return err
 	}
-	stmtMapProduct, err = ProductPrepareStmt()
+	stmtMapProduct, err := ProductPrepareStmt()
 	if err != nil {
 		return err
 	}
@@ -192,7 +217,7 @@ func InitEcommerceDb() error {
 		db:            db,
 		preparedCache: stmtMapProduct,
 	}
-	stmtMapUser, err = UserPrepareStmt()
+	stmtMapUser, err := UserPrepareStmt()
 	if err != nil {
 		return err
 	}
@@ -200,7 +225,7 @@ func InitEcommerceDb() error {
 		db:            db,
 		preparedCache: stmtMapUser,
 	}
-	stmtMapOrder, err = OrderPrepareStmt()
+	stmtMapOrder, err := OrderPrepareStmt()
 	if err != nil {
 		return err
 	}
@@ -208,7 +233,7 @@ func InitEcommerceDb() error {
 		db:            db,
 		preparedCache: stmtMapOrder,
 	}
-	stmtMapOrderItem, err = OrderItemPrepareStmt()
+	stmtMapOrderItem, err := OrderItemPrepareStmt()
 	if err != nil {
 		return err
 	}
@@ -216,7 +241,7 @@ func InitEcommerceDb() error {
 		db:            db,
 		preparedCache: stmtMapOrderItem,
 	}
-	stmtMapUserCart, err = UserCartPrepareStmt()
+	stmtMapUserCart, err := UserCartPrepareStmt()
 	if err != nil {
 		return err
 	}
@@ -232,6 +257,24 @@ func InitEcommerceDb() error {
 		UserCart:  userCart,
 	}
 	return nil
+}
+func SetupDBConnection() (*sql.DB, error) {
+	driverName, dsn := "postgres", "user=user password=password dbname=ecommerce port=5432 host=localhost"
+	idleConnTimeout, connMaxLifetime := (time.Second * 10), (time.Minute * 30)
+	idleConns, maxOpenConns := 5, 10
+	db, err := sql.Open(driverName, dsn)
+	if err != nil {
+		return nil, err
+	}
+	err = db.Ping()
+	if err != nil {
+		return nil, err
+	}
+	db.SetMaxIdleConns(idleConns)
+	db.SetMaxOpenConns(maxOpenConns)
+	db.SetConnMaxIdleTime(idleConnTimeout)
+	db.SetConnMaxLifetime(connMaxLifetime)
+	return db, nil
 }
 `
 	srcFile := golang.GoSourceFile{
@@ -250,8 +293,23 @@ func TestGenerateDB(t *testing.T) {
 	config.LoadConfig()
 
 	dataConfig := &defs.DataConfig{
-		FamilyName:     "EcommerceDB",
-		DatabaseConfig: &defs.DatabaseConfig{}, // Just to avoid error returned by GenerateDB function
+		FamilyName: "EcommerceDB",
+		DatabaseConfig: &defs.DatabaseConfig{
+			DriverName: "postgres",
+			UserName:   "test_gen_user",
+			Password:   "test_gen_password",
+			Host:       "localhost",
+			Port:       5432,
+			DBName:     "test_gen_ecommerce",
+			ConnectionConfig: &defs.ConnectionConfig{
+				IdleTimeoutSecs: 10,
+				MaxLifetimeMins: 30,
+			},
+			ConnectionPoolConfig: &defs.ConnectionPoolConfig{
+				MaxIdleConns: 5,
+				MaxOpenConns: 10,
+			},
+		}, // Just to avoid error returned by GenerateDB function
 		Models: []defs.ModelConfig{
 			{
 				Model: defs.Model{
@@ -261,12 +319,92 @@ func TestGenerateDB(t *testing.T) {
 				Access: defs.Access{
 					Find: []defs.AccessConfig{
 						{
-							Name:       "GetUserByID",
-							Attributes: []string{"name", "email", "shopping_address", "billing_address"},
+							Name:       "GetUserByEmail",
+							Attributes: []string{"name", "email", "shipping_address", "billing_address"},
 							Filter: []defs.Filter{{
 								Attribute: "email",
 								Operator:  "=",
 								ParamName: "email",
+							}},
+						},
+						{
+							Name:       "GetUserByName",
+							Attributes: []string{"name", "email", "shipping_address", "billing_address"},
+							Filter: []defs.Filter{{
+								Attribute: "name",
+								Operator:  "=",
+								ParamName: "name",
+							}},
+						},
+						{
+							Name:       "GetUserByID",
+							Attributes: []string{"name", "email", "shipping_address", "billing_address"},
+							Filter: []defs.Filter{{
+								Attribute: "id",
+								Operator:  "IN",
+								ParamName: "id",
+							}},
+						},
+					},
+					Update: []defs.AccessConfig{
+						{
+							Name: "UpdateUser",
+							Filter: []defs.Filter{{
+								Attribute: "id",
+								Operator:  "=",
+								ParamName: "id",
+							}},
+							Set: []defs.Update{{
+								Attribute: "name",
+								ParamName: "name",
+							}},
+						},
+					},
+					Add: []defs.AccessConfig{
+						{
+							Name: "AddUser",
+							Values: []defs.Update{{
+								Attribute: "name",
+								ParamName: "name",
+							}, {
+								Attribute: "email",
+								ParamName: "email",
+							}, {
+								Attribute: "shipping_address",
+								ParamName: "shipping_address",
+							}, {
+								Attribute: "billing_address",
+								ParamName: "billing_address",
+							},
+							},
+						},
+					},
+					AddOrReplace: []defs.AccessConfig{
+						{
+							Name: "AddOrReplaceUser",
+							Values: []defs.Update{{
+								Attribute: "name",
+								ParamName: "name",
+							}, {
+								Attribute: "email",
+								ParamName: "email",
+							}, {
+								Attribute: "shipping_address",
+								ParamName: "shipping_address",
+							}, {
+								Attribute: "billing_address",
+								ParamName: "billing_address",
+							},
+							},
+						},
+					},
+					Delete: []defs.AccessConfig{
+						{
+							Name: "DeleteUser",
+							Filter: []defs.Filter{{
+								Attribute: "id",
+								Operator:  "=",
+								ParamName: "id",
 							}},
 						},
 					},
@@ -324,5 +462,11 @@ func TestGenerateDB(t *testing.T) {
 		t.Log(unitModule.GenerateCode("database"))
 	}
 
-	// You can add more specific assertions based on the expected behavior of the GenerateDB function
+	module := &golang.Module{
+		Name:  "database",
+		Units: unitModules,
+	}
+
+	module.GenerateModuleCode("generated")
+
 }

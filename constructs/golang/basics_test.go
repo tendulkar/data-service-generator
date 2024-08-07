@@ -186,7 +186,7 @@ func TestGenerateGoFile(t *testing.T) {
 			Body: []*CodeElement{
 				{
 					Return: &CodeElement{
-						StructCreation: &StructCreation{StructType: "Logger", KeyValues: KeyValues{{Key: "Level", Value: "0"}}},
+						StructCreation: &MakeStruct{StructType: "Logger", KeyValues: KeyValues{{Key: "Level", Value: "0"}}},
 					},
 				},
 			},

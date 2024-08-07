@@ -381,7 +381,15 @@ func generateImports(sources map[string]bool) string {
 
 	var importLines []string
 	for source := range sources {
-		importLines = append(importLines, fmt.Sprintf("%s\"%s\"", Indent, source))
+		if source == "" {
+			continue
+		}
+		source = strings.TrimSpace(source)
+		importLine := fmt.Sprintf("%s\"%s\"", Indent, source)
+		if strings.HasPrefix(source, "_") {
+			importLine = fmt.Sprintf("%s _ \"%s\"", Indent, strings.TrimSpace(strings.TrimPrefix(source, "_")))
+		}
+		importLines = append(importLines, importLine)
 	}
 
 	importCode := fmt.Sprintf("import (\n%s\n)\n", strings.Join(importLines, "\n"))

@@ -43,7 +43,7 @@ func GenStructWithNewFunction(structName string, nameWithTypes []NameWithType, i
 		Fields: fields,
 	}
 
-	stCreate := &StructCreation{
+	stCreate := &MakeStruct{
 		StructType: st.Name,
 		KeyValues:  keyValues,
 	}

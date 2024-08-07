@@ -21,10 +21,10 @@ type UnitModule struct {
 }
 
 type Module struct {
-	Name         string       `yaml:"name"`
-	Units        []UnitModule `yaml:"units"`
-	ChildModules []*Module    `yaml:"child_modules"`
-	Dependencies []Dependency `yaml:"dependencies"`
+	Name         string        `yaml:"name"`
+	Units        []*UnitModule `yaml:"units"`
+	ChildModules []*Module     `yaml:"child_modules"`
+	Dependencies []Dependency  `yaml:"dependencies"`
 }
 
 type ProjectRequirement struct {

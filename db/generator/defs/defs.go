@@ -1,8 +1,17 @@
 package defs
 
+import (
+	"fmt"
+
+	"stellarsky.ai/platform/codegen/data-service-generator/config"
+	"stellarsky.ai/platform/codegen/data-service-generator/db/models"
+)
+
 type ParameterRef struct {
-	Name  string `yaml:"name"`
-	Index int32  `yaml:"index"`
+	Name     string        `yaml:"name"`
+	Index    int32         `yaml:"index"`
+	FuncName string        `yaml:"func_name"`
+	FuncArgs []interface{} `yaml:"func_args"`
 }
 
 type Filter struct {
@@ -20,9 +29,13 @@ type Model struct {
 	Name              string  `yaml:"name"`
 	Attributes        []int64 `yaml:"attributes"`
 	UniqueConstraints []struct {
-		ConstraintName string `yaml:"constraint_name"`
-		Attributes     []int  `yaml:"attributes"`
+		ConstraintName string  `yaml:"constraint_name"`
+		Attributes     []int64 `yaml:"attributes"`
 	} `yaml:"unique_constraints"`
+	Indexes []struct {
+		IndexName  string  `yaml:"index_name"`
+		Attributes []int64 `yaml:"attributes"`
+	} `yaml:"indexes"`
 }
 
 type Access struct {
@@ -36,6 +49,62 @@ type Access struct {
 type ModelConfig struct {
 	Model  `yaml:"model"`
 	Access `yaml:"access"`
+}
+
+func (m *ModelConfig) GetAllAccessConfig() []AccessConfig {
+	accessConfig := []AccessConfig{}
+	accessConfig = append(accessConfig, m.Access.Find...)
+	accessConfig = append(accessConfig, m.Access.Update...)
+	accessConfig = append(accessConfig, m.Access.Add...)
+	accessConfig = append(accessConfig, m.Access.AddOrReplace...)
+	accessConfig = append(accessConfig, m.Access.Delete...)
+	return accessConfig
+}
+
+func (m *ModelConfig) GetAllFilters() []Filter {
+	filters := []Filter{}
+	for _, accessConfig := range m.GetAllAccessConfig() {
+		filters = append(filters, accessConfig.Filter...)
+	}
+	return filters
+}
+
+func (m *ModelConfig) GetAttributes() ([]*models.AttributeRow, error) {
+	attributes := []*models.AttributeRow{}
+	for _, attributeID := range m.Attributes {
+		attribute, ok := config.Attributes[attributeID]
+		if !ok {
+			return nil, fmt.Errorf("ModelConfig attribute %d not found", attributeID)
+		}
+		attributes = append(attributes, &attribute)
+	}
+	return attributes, nil
+}
+
+type Index struct {
+	IndexName  string  `yaml:"index_name"`
+	Attributes []int64 `yaml:"attributes"`
+	IsUnique   bool    `yaml:"is_unique"`
+}
+
+func (m *Model) GetIndexes() []Index {
+	indexes := []Index{}
+	for _, index := range m.Indexes {
+		indexes = append(indexes, Index{
+			IndexName:  index.IndexName,
+			Attributes: index.Attributes,
+			IsUnique:   false,
+		})
+	}
+
+	for _, constraint := range m.UniqueConstraints {
+		indexes = append(indexes, Index{
+			IndexName:  constraint.ConstraintName,
+			Attributes: constraint.Attributes,
+			IsUnique:   true,
+		})
+	}
+	return indexes
 }
 
 type Parameter struct {
@@ -68,11 +137,12 @@ type Attribute struct {
 
 type ConnectionConfig struct {
 	IdleTimeoutSecs int `yaml:"idle_timeout_secs"`
-	MaxLifetimeMins int `yaml:"conn_max_lifetime_secs"`
+	MaxLifetimeMins int `yaml:"conn_max_lifetime_mins"`
 }
 
 type ConnectionPoolConfig struct {
 	MaxIdleConns int `yaml:"max_idle_conns"`
+	MaxOpenConns int `yaml:"max_open_conns"`
 }
 
 type DatabaseConfig struct {

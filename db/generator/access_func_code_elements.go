@@ -20,7 +20,7 @@ func lookupStmtCE(confName string, dbName, cacheName, stmtName string) *golang.M
 func parseParamsCE(confName string, requestParamsName string, valuesName string, returnParams []*golang.Parameter) *golang.FunctionCall {
 	return &golang.FunctionCall{
 		NewOutput: []string{valuesName, "err"},
-		Function:  fmt.Sprintf("%sParseParams", confName),
+		Function:  fmt.Sprintf("%sReadParams", confName),
 		Args:      []string{requestParamsName},
 		ErrorHandler: &golang.ErrorHandler{
 			ErrorFunctionReturns: returnParams,
@@ -245,7 +245,8 @@ func callRowsAffectedCE(objName, resultName, errorName string, returnParams []*g
 }
 
 func FindCodeFunction(modelName, modelDBName, name string, attributes []string) *golang.FunctionDef {
-	fnReturns := resultsErrorParamsCE(modelName, "results", "err", "")
+	resultsTypeName := fmt.Sprintf("[]%s", modelName)
+	fnReturns := typeOnlyParamsCE(resultsTypeName, "error")
 	codeElems := golang.CodeElements{
 		{
 			MapLookup: lookupStmtCE(name, "db", "preparedCache", "stmt"),
@@ -257,7 +258,7 @@ func FindCodeFunction(modelName, modelDBName, name string, attributes []string) 
 			FunctionCall: queryStmtCE("stmt", "values", "rows", fnReturns),
 		},
 		{
-			Variable: createVarCE("results", fmt.Sprintf("[]%s", modelName)),
+			Variable: createVarCE("results", resultsTypeName),
 		},
 		{
 			RepeatCond: scanResultsCE(modelName, attributes, "results"),
@@ -275,6 +276,7 @@ func FindCodeFunction(modelName, modelDBName, name string, attributes []string) 
 		Parameters:   params,
 		Body:         codeElems,
 		Returns:      fnReturns,
+		Imports:      []string{"context", "database/sql", "_ github.com/lib/pq"},
 		Dependencies: dependencies,
 	}
 
@@ -308,6 +310,7 @@ func UpdateCodeFunction(name string, modelDBName string) *golang.FunctionDef {
 		Parameters:   params,
 		Body:         codeElems,
 		Returns:      fnReturns,
+		Imports:      []string{"context", "database/sql", "_ github.com/lib/pq"},
 		Dependencies: dependencies,
 	}
 	return fn
@@ -338,6 +341,7 @@ func AddCodeFunction(name string, modelDBName string) *golang.FunctionDef {
 		Parameters:   params,
 		Body:         codeElems,
 		Returns:      fnReturns,
+		Imports:      []string{"context", "database/sql", "_ github.com/lib/pq"},
 		Dependencies: nil,
 	}
 	return fn
@@ -371,6 +375,7 @@ func AddOrReplaceCodeFunction(name string, modelDBName string) *golang.FunctionD
 		Parameters:   params,
 		Body:         codeElems,
 		Returns:      fnReturns,
+		Imports:      []string{"context", "database/sql", "_ github.com/lib/pq"},
 		Dependencies: nil,
 	}
 	return fn
@@ -401,6 +406,7 @@ func DeleteCodeFunction(name string, modelDBName string) *golang.FunctionDef {
 		Parameters:   params,
 		Body:         codeElems,
 		Returns:      fnReturns,
+		Imports:      []string{"context", "database/sql", "_ github.com/lib/pq"},
 		Dependencies: nil,
 	}
 	return fn
@@ -415,7 +421,7 @@ func ReadParamsFunction(paramRefs []defs.ParameterRef, confName string,
 	}
 
 	for _, paramRef := range paramRefs {
-		paramArg := fmt.Sprintf("%s.%s", paramsName, paramRef.Name)
+		paramArg := fmt.Sprintf("%s.%s", paramsName, golang.ToPascalCase(paramRef.Name))
 		if paramRef.Index != -1 {
 			paramArg = fmt.Sprintf("%s.([]interface{})[%d]", paramArg, paramRef.Index)
 		}
@@ -482,7 +488,7 @@ type NamedQuery struct {
 // Generates function to prepare statements
 // Signature: func(db *sql.DB, queries map[string]string) (map[string]*sql.Stmt, error) {...}
 // The function will prepare all queries passed with NamedQuery
-func PrepareStmtFunction(modelName string, queries []NamedQuery) *golang.FunctionDef {
+func PrepareStmtsFunction(modelName string, queries []NamedQuery) *golang.FunctionDef {
 	returnFn := typeOnlyParamsCE("map[string]*sql.Stmt", "error")
 	body := golang.CodeElements{
 		{
@@ -502,21 +508,10 @@ func PrepareStmtFunction(modelName string, queries []NamedQuery) *golang.Functio
 	body = append(body, returnResultNilCE("preparedCache"))
 
 	fnParams := []*golang.Parameter{
-		{
-			Name: "db",
-			Type: &golang.GoType{
-				Name: "*sql.DB",
-			},
-		},
-		{
-			Name: "queries",
-			Type: &golang.GoType{
-				Name: "map[string]string",
-			},
-		},
+		golang.NewParameter("db", "*sql.DB"),
 	}
 
-	fnName := fmt.Sprintf("%sPrepareStmt", modelName)
+	fnName := fmt.Sprintf("%sPrepareStmts", modelName)
 	fn := &golang.FunctionDef{
 		Name:         fnName,
 		Parameters:   fnParams,
@@ -536,7 +531,7 @@ func PrepareStmtFunction(modelName string, queries []NamedQuery) *golang.Functio
 // 3. db.Ping() for connection,
 // 4. configure pool and connection,
 // 5. and return db or error
-func SetupDBConnectionFunction(dataConf defs.DataConfig) (*golang.FunctionDef, error) {
+func SetupDBConnectionFunction(dataConf *defs.DataConfig) (*golang.FunctionDef, error) {
 
 	if dataConf.DatabaseConfig == nil {
 		return nil, fmt.Errorf("dataconf is missing connection config")
@@ -566,13 +561,28 @@ func SetupDBConnectionFunction(dataConf defs.DataConfig) (*golang.FunctionDef, e
 	returnParams := typeOnlyParamsCE("*sql.DB", "error")
 	return &golang.FunctionDef{
 		Name:    "SetupDBConnection",
-		Imports: []string{"database/sql", "github.com/lib/pq", "time"},
+		Imports: []string{"database/sql", "_ github.com/lib/pq", "time"},
 		Returns: returnParams,
 		Body: golang.CodeElements{
 			{
 				NewAssign: &golang.NewAssignment{
-					Left:  []string{"driverName", "dsn", "idleConns", "connMaxLifetime"},
-					Right: golang.NewLits(dbConf.DriverName, dsn, dbConf.ConnectionPoolConfig.MaxIdleConns, dbConf.ConnectionConfig.MaxLifetimeMins),
+					Left:  []string{"driverName", "dsn"},
+					Right: golang.NewLits(dbConf.DriverName, dsn),
+				},
+			},
+			{
+				NewAssign: &golang.NewAssignment{
+					Left: []string{"idleConnTimeout", "connMaxLifetime"},
+					Right: []*golang.CodeElement{
+						golang.MulCE(&golang.Literal{Value: "time", Attribute: "Second"}, dbConf.ConnectionConfig.IdleTimeoutSecs),
+						golang.MulCE(&golang.Literal{Value: "time", Attribute: "Minute"}, dbConf.ConnectionConfig.MaxLifetimeMins),
+					},
+				},
+			},
+			{
+				NewAssign: &golang.NewAssignment{
+					Left:  []string{"idleConns", "maxOpenConns"},
+					Right: golang.NewLits(dbConf.ConnectionPoolConfig.MaxIdleConns, dbConf.ConnectionPoolConfig.MaxOpenConns),
 				},
 			},
 			goutils.FCEHNewOutReceiverArgsCE([]string{"db", "err"}, "sql", "Open",
@@ -580,8 +590,10 @@ func SetupDBConnectionFunction(dataConf defs.DataConfig) (*golang.FunctionDef, e
 
 			goutils.FCEHOutReceiverArgsCE([]string{"err"}, "db", "Ping", nil, goutils.EHNilError("err")),
 			goutils.FCReceiverArgsCE("db", "SetMaxIdleConns", "idleConns"),
-			goutils.FCReceiverArgsCE("db", "SetConnMaxLifetime", &golang.Mul{BinaryOp: golang.BinaryOp{
-				Left: &golang.Literal{Value: "time", Attribute: "Minute"}, Right: "connMaxLifetime"}}),
+			goutils.FCReceiverArgsCE("db", "SetMaxOpenConns", "maxOpenConns"),
+			goutils.FCReceiverArgsCE("db", "SetConnMaxIdleTime", "idleConnTimeout"),
+			goutils.FCReceiverArgsCE("db", "SetConnMaxLifetime", "connMaxLifetime"),
+
 			returnValuesCE("db", "nil"),
 		},
 	}, nil
@@ -595,14 +607,17 @@ func SetupDBConnectionFunction(dataConf defs.DataConfig) (*golang.FunctionDef, e
 // Since it's a singleton better to keep return type as lower case(private).
 func GenerateInitFamilyFunction(modelNameMaps modelNameMappings, varName, familyTypeName string) (*golang.FunctionDef, error) {
 	body := golang.CodeElements{
-		goutils.FCEHOutCE([]string{"db", "err"}, "SetupDBConnection", goutils.EHError("err")), // SetupDBConnection()
+		goutils.FCEHNewOutCE([]string{"db", "err"}, "SetupDBConnection", goutils.EHError("err")), // SetupDBConnection()
 	}
 
 	for _, modelNameMap := range modelNameMaps {
-		body = append(body, goutils.FCEHOutCE([]string{fmt.Sprintf("stmtMap%s", modelNameMap.ModelStructName), "err"},
-			fmt.Sprintf("%sPrepareStmt", modelNameMap.ModelStructName), goutils.EHError("err"))) // PrepareCache())
+		prepareStmtFnName := fmt.Sprintf("%sPrepareStmts", modelNameMap.ModelStructName)
+		errHandler := goutils.EHError("err")
+		outputs := []string{fmt.Sprintf("stmtMap%s", modelNameMap.ModelStructName), "err"}
+		args := []string{"db"}
+		body = append(body, goutils.FCEHNewOutArgsCE(outputs, prepareStmtFnName, args, errHandler)) // PrepareCache())
 
-		modelDBStruct := &golang.StructCreation{
+		modelDBStruct := &golang.MakeStruct{
 			NewOutput:  golang.ToCamelCase(modelNameMap.ModelStructName),
 			StructType: modelNameMap.ModelDBStructName,
 			KeyValues: golang.KeyValues{
@@ -619,7 +634,7 @@ func GenerateInitFamilyFunction(modelNameMaps modelNameMappings, varName, family
 			&golang.KeyValue{Key: modelNameMap.ModelStructName, Variable: golang.ToCamelCase(modelNameMap.ModelStructName)})
 	}
 
-	stCreate := &golang.StructCreation{
+	stCreate := &golang.MakeStruct{
 		Output:     varName,
 		StructType: familyTypeName,
 		KeyValues:  familyKeyValues,

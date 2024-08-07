@@ -134,9 +134,7 @@ func TestPrepareFilters(t *testing.T) {
 	}
 
 	for i, param := range paramsMap {
-		if param != expectedParamsMap[i] {
-			t.Errorf("Mismatch at index %d. Expected %v, but got %v", i, expectedParamsMap[i], paramsMap[i])
-		}
+		assert.Equal(t, expectedParamsMap[i], param, "Mismatch at index %d. Expected %v, but got %v", i, expectedParamsMap[i], paramsMap[i])
 	}
 
 	// Test case: complex filter
